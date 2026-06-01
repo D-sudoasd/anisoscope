@@ -18,6 +18,7 @@ def test_main_window_loads_example_and_analyzes(qtbot=None):
     window.load_example_by_name("Si cubic")
     window.analyze_current_matrix()
 
+    assert window.windowTitle() == "AnisoScope"
     assert window.current_tensor is not None
     assert window.example_combo.currentText() == "Si cubic"
     assert window.current_summary is not None

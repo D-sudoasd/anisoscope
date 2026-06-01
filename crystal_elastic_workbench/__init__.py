@@ -1,4 +1,4 @@
-"""Crystal Elastic Workbench package."""
+"""AnisoScope crystal elastic anisotropy analysis package."""
 
 from crystal_elastic_workbench.core import ElasticTensor, PolycrystalSummary
 from crystal_elastic_workbench.stability import StabilityResult, check_stability

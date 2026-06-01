@@ -2,23 +2,23 @@
 setlocal
 
 cd /d "%~dp0"
-set "APP_NAME=Crystal Elastic Workbench"
+set "APP_NAME=AnisoScope"
 set "QT_API=pyside6"
 
 if /I "%~1"=="--check" (
     echo Checking %APP_NAME% launcher...
     echo Project directory: %cd%
-    py -3.11 -c "from PySide6.QtCore import Qt; from crystal_elastic_workbench.gui import MainWindow; print('GUI import check ok')"
+    py -3.11 -c "from PySide6.QtCore import Qt; from crystal_elastic_workbench.gui import MainWindow; import anisoscope; print('GUI import check ok')"
     exit /b 0
 )
 
 echo Starting %APP_NAME%...
-py -3.11 -m crystal_elastic_workbench
+py -3.11 -m anisoscope
 if %errorlevel% neq 0 (
     echo.
     echo Failed to start %APP_NAME% with py -3.11.
     echo Trying python instead...
-    python -m crystal_elastic_workbench
+    python -m anisoscope
 )
 
 if %errorlevel% neq 0 (

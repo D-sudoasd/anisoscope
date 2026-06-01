@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "crystal-elastic-workbench"
+name = "anisoscope"
 version = "0.1.0"
-description = "GUI and numerical toolkit for crystal elastic tensor analysis from Cij."
+description = "AnisoScope: GUI and numerical toolkit for crystal elastic anisotropy analysis from Cij."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -23,7 +23,11 @@ dependencies = [
 test = ["pytest>=7.4"]
 
 [project.scripts]
+anisoscope = "crystal_elastic_workbench.gui:main"
 crystal-elastic-workbench = "crystal_elastic_workbench.gui:main"
+
+[tool.setuptools.packages.find]
+include = ["anisoscope*", "crystal_elastic_workbench*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,6 +1,6 @@
-# Crystal Elastic Workbench
+# AnisoScope
 
-Crystal Elastic Workbench is a Python desktop tool for inspecting crystal elastic stiffness matrices (`Cij`).
+AnisoScope is a Python desktop tool for inspecting crystal elastic anisotropy from stiffness matrices (`Cij`).
 It is aimed at research workflows where traceability matters: the program keeps the input matrix, unit,
 crystal system, sampling parameters, plotting style, and export settings with the generated results.
 
@@ -52,20 +52,23 @@ From the repository:
 
 ```powershell
 cd C:\Users\AORUS\Documents\Cij
-py -3.11 -m crystal_elastic_workbench
+py -3.11 -m anisoscope
 ```
 
 After installation, the console script is also available:
 
 ```powershell
-crystal-elastic-workbench
+anisoscope
 ```
 
 The batch launcher can be used on Windows:
 
 ```powershell
-.\start_crystal_elastic_workbench.bat
+.\start_anisoscope.bat
 ```
+
+The legacy module and console-script entry points (`python -m crystal_elastic_workbench` and
+`crystal-elastic-workbench`) are kept as compatibility aliases.
 
 ## GUI Workflow
 

@@ -146,7 +146,7 @@ def write_export_manifest(
     exported_path = Path(exported_file)
     manifest_path = exported_path.with_name(f"{exported_path.name}.manifest.json")
     payload = {
-        "program": "Crystal Elastic Workbench",
+        "program": "AnisoScope",
         "version": __version__,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "export_type": export_type,
@@ -250,7 +250,7 @@ def export_analysis_package(
         files[f"surface_{prop}_csv"] = surface_csv.name
 
     manifest = {
-        "program": "Crystal Elastic Workbench",
+        "program": "AnisoScope",
         "version": __version__,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "material_name": tensor.material_name,

@@ -100,6 +100,7 @@ def test_export_analysis_package_writes_traceable_manifest_and_data(tmp_path):
 
     assert manifest_path.exists()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["program"] == "AnisoScope"
     assert manifest["material_name"] == "isotropic-test"
     assert manifest["unit"] == "GPa"
     assert manifest["crystal_system"] == "cubic"
@@ -185,6 +186,7 @@ def test_single_export_manifest_records_input_and_output_file(tmp_path):
     )
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["program"] == "AnisoScope"
     assert manifest["material_name"] == "sidecar-test"
     assert manifest["export_type"] == "figure"
     assert manifest["exported_file"] == "plot.png"

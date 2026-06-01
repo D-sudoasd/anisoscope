@@ -17,6 +17,9 @@ def test_readme_documents_merge_gate_relevant_workflows():
     ]
     for section in required_sections:
         assert section in text
+    assert text.startswith("# AnisoScope")
+    assert "py -3.11 -m anisoscope" in text
+    assert ".\\start_anisoscope.bat" in text
     assert "py -3.11 -m pytest -q" in text
     assert "Voigt order" in text
     assert "sidecar" in text

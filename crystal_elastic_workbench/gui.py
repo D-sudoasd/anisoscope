@@ -1,4 +1,4 @@
-"""PySide6 desktop GUI for Crystal Elastic Workbench."""
+"""PySide6 desktop GUI for AnisoScope."""
 
 from __future__ import annotations
 
@@ -198,7 +198,7 @@ class FigurePane(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Crystal Elastic Workbench")
+        self.setWindowTitle("AnisoScope")
         self.resize(1380, 860)
 
         self.current_tensor: ElasticTensor | None = None
