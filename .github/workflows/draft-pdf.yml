@@ -1,0 +1,32 @@
+name: JOSS paper draft
+
+on:
+  push:
+    paths:
+      - "paper/**"
+      - ".github/workflows/draft-pdf.yml"
+  pull_request:
+    paths:
+      - "paper/**"
+      - ".github/workflows/draft-pdf.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build draft with the Open Journals action
+        # v1.0 / master resolved to this reviewed commit on 2026-07-30.
+        uses: openjournals/openjournals-draft-action@85a18372e48f551d8af9ddb7a747de685fbbb01c
+        with:
+          journal: joss
+          paper-path: paper/paper.md
+      - name: Upload draft PDF
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: joss-paper
+          path: paper/paper.pdf
