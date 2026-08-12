@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from crystal_elastic_workbench.core import ElasticTensor
-from crystal_elastic_workbench.exporting import write_export_manifest
+from crystal_elastic_workbench.exporting import sampled_data_manifest_parameters, write_export_manifest
 from crystal_elastic_workbench.plot_styles import DEFAULT_3D_PALETTE_NAME, get_palette
 from crystal_elastic_workbench.sampling import DirectionalSurface
 from crystal_elastic_workbench.visualization import export_rotating_gif, export_rotating_mp4
@@ -62,7 +62,7 @@ def _gif_manifest_parameters(surface: DirectionalSurface, options: AnimationExpo
         "theme": options.theme_name,
         "palette": options.palette_name,
         "axis": options.axis,
-        "property": surface.property_name,
+        **sampled_data_manifest_parameters(surface),
         "transparent_background": options.transparent_background,
         **_render_style_parameters(options),
     }
@@ -75,7 +75,7 @@ def _mp4_manifest_parameters(surface: DirectionalSurface, options: AnimationExpo
         "theme": options.theme_name,
         "palette": options.palette_name,
         "axis": options.axis,
-        "property": surface.property_name,
+        **sampled_data_manifest_parameters(surface),
         **_render_style_parameters(options),
     }
 

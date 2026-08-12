@@ -54,7 +54,11 @@ def test_export_paper_figures_writes_traceable_png_set(tmp_path):
         assert manifest["material_name"] == "Si cubic"
         assert manifest["parameters"]["dpi"] == 120
         assert manifest["parameters"]["theme"] == "Nature White"
+        assert "transverse_mode" not in manifest["parameters"]
+        assert "transverse_samples" not in manifest["parameters"]
         if key == "surface_png":
+            assert manifest["parameters"]["theta_count"] == 5
+            assert manifest["parameters"]["phi_count"] == 9
             assert manifest["parameters"]["backend"] in {"pyvista", "matplotlib"}
             assert manifest["parameters"]["palette"] == "Nature Surface"
             assert manifest["parameters"]["palette_category"] == "sequential"

@@ -8,7 +8,7 @@ from pathlib import Path
 from matplotlib import pyplot as plt
 
 from crystal_elastic_workbench.core import ElasticTensor
-from crystal_elastic_workbench.exporting import write_export_manifest
+from crystal_elastic_workbench.exporting import sampled_data_manifest_parameters, write_export_manifest
 from crystal_elastic_workbench.plot_styles import DEFAULT_3D_PALETTE_NAME
 from crystal_elastic_workbench.render3d import (
     PyVistaUnavailableError,
@@ -117,7 +117,7 @@ def export_surface_figure(
             "palette": opts.palette_name,
             "transparent_background": opts.transparent_background,
             **render3d_style_parameters(render_options),
-            "property": surface.property_name,
+            **sampled_data_manifest_parameters(surface),
         },
     )
     return SurfaceFigureExportResult(

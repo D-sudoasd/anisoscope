@@ -111,6 +111,8 @@ def test_export_analysis_package_writes_traceable_manifest_and_data(tmp_path):
     assert "model_table_notes_json" in manifest["files"]
     assert manifest["recommended_model"] == "Hill"
     assert manifest["included_models"] == ["Voigt", "Reuss", "Hill", "Geometric"]
+    assert manifest["sampling"]["transverse_mode_for_shear_and_poisson"] == "mean"
+    assert manifest["sampling"]["transverse_samples_for_shear_and_poisson"] == 72
     assert (tmp_path / manifest["files"]["stiffness_matrix_csv"]).exists()
     assert (tmp_path / manifest["files"]["surface_young_csv"]).exists()
     assert (tmp_path / manifest["files"]["model_table_csv"]).exists()
@@ -138,6 +140,68 @@ def test_export_sampled_data_writes_csv_and_manifest(tmp_path):
     assert manifest["export_type"] == "polar_sampled_data"
     assert manifest["parameters"]["property"] == "young"
     assert manifest["parameters"]["rows"] == 19
+    assert manifest["parameters"]["angle_count"] == 19
+    assert "transverse_mode" not in manifest["parameters"]
+    assert "transverse_samples" not in manifest["parameters"]
+
+
+def test_custom_path_and_plane_manifests_preserve_exact_sampling_inputs(tmp_path):
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    path = sample_direction_path(
+        tensor,
+        property_name="young",
+        points=[("start", [1.0, 2.0, 3.0]), ("end", [-2.0, 1.0, 4.0])],
+        points_per_segment=7,
+    )
+    normal = np.array([0.123456789, -0.987654321, 0.333333333])
+    plane = sample_plane(tensor, property_name="young", plane=normal, angle_count=19)
+
+    path_output = export_sampled_data(tensor, path, tmp_path / "path.csv", kind="line")
+    plane_output = export_sampled_data(tensor, plane, tmp_path / "plane.csv", kind="polar")
+    path_manifest = json.loads(
+        path_output.with_name(f"{path_output.name}.manifest.json").read_text(encoding="utf-8")
+    )
+    plane_manifest = json.loads(
+        plane_output.with_name(f"{plane_output.name}.manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert path_manifest["parameters"]["path_labels"] == ["start", "end"]
+    assert np.allclose(
+        path_manifest["parameters"]["path_points"],
+        np.array([[1.0, 2.0, 3.0], [-2.0, 1.0, 4.0]])
+        / np.linalg.norm(np.array([[1.0, 2.0, 3.0], [-2.0, 1.0, 4.0]]), axis=1)[:, None],
+    )
+    assert np.allclose(
+        plane_manifest["parameters"]["plane_normal"],
+        normal / np.linalg.norm(normal),
+        rtol=0.0,
+        atol=1e-15,
+    )
+
+
+def test_shear_manifest_records_transverse_sampling(tmp_path):
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    plane = sample_plane(tensor, property_name="shear", plane="xy", angle_count=19)
+
+    output = export_sampled_data(tensor, plane, tmp_path / "shear.csv", kind="polar")
+    manifest = json.loads(output.with_name(f"{output.name}.manifest.json").read_text(encoding="utf-8"))
+
+    assert manifest["parameters"]["transverse_mode"] == "mean"
+    assert manifest["parameters"]["transverse_samples"] == 72
+
+
+@pytest.mark.parametrize(("alias", "canonical"), [("g", "shear"), ("nu", "poisson")])
+def test_transverse_property_aliases_are_canonicalized_in_manifest(tmp_path, alias, canonical):
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    plane = sample_plane(tensor, property_name=alias, plane="xy", angle_count=19)
+
+    output = export_sampled_data(tensor, plane, tmp_path / f"{canonical}.csv", kind="polar")
+    manifest = json.loads(output.with_name(f"{output.name}.manifest.json").read_text(encoding="utf-8"))
+
+    assert plane.property_name == canonical
+    assert manifest["parameters"]["property"] == canonical
+    assert manifest["parameters"]["transverse_mode"] == "mean"
+    assert manifest["parameters"]["transverse_samples"] == 72
 
 
 def test_export_sampled_data_rejects_unknown_kind(tmp_path):

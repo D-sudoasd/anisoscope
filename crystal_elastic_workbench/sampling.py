@@ -10,6 +10,29 @@ import numpy as np
 from crystal_elastic_workbench.core import ElasticTensor, normalize_vector
 
 
+_PROPERTY_ALIASES = {
+    "young": "young",
+    "youngs": "young",
+    "e": "young",
+    "compressibility": "compressibility",
+    "beta": "compressibility",
+    "shear": "shear",
+    "g": "shear",
+    "poisson": "poisson",
+    "nu": "poisson",
+}
+
+
+def canonical_property_name(property_name: str) -> str:
+    """Return the canonical public name for a directional property."""
+
+    key = property_name.lower().strip()
+    try:
+        return _PROPERTY_ALIASES[key]
+    except KeyError as error:
+        raise ValueError(f"Unsupported directional property: {property_name}") from error
+
+
 @dataclass(frozen=True)
 class PlaneSlice:
     property_name: str
@@ -17,6 +40,9 @@ class PlaneSlice:
     angles_deg: np.ndarray
     directions: np.ndarray
     values: np.ndarray
+    transverse_mode: str = "mean"
+    transverse_samples: int = 72
+    plane_normal: np.ndarray | None = None
 
     @property
     def min_value(self) -> float:
@@ -41,6 +67,8 @@ class DirectionalSurface:
     max_value: float
     min_direction: np.ndarray
     max_direction: np.ndarray
+    transverse_mode: str = "mean"
+    transverse_samples: int = 72
 
 
 @dataclass(frozen=True)
@@ -51,6 +79,10 @@ class DirectionPath:
     values: np.ndarray
     tick_positions: list[float]
     tick_labels: list[str]
+    transverse_mode: str = "mean"
+    transverse_samples: int = 72
+    path_points: np.ndarray | None = None
+    path_labels: tuple[str, ...] = ()
 
 
 def plane_basis(plane: str | Iterable[float]) -> tuple[str, np.ndarray, np.ndarray]:
@@ -85,7 +117,9 @@ def sample_plane(
 ) -> PlaneSlice:
     if angle_count < 3:
         raise ValueError("angle_count must be at least 3.")
+    property_name = canonical_property_name(property_name)
     plane_label, u, v = plane_basis(plane)
+    plane_normal = None if isinstance(plane, str) else normalize_vector(plane, name="plane normal")
     angles = np.linspace(0.0, 360.0, angle_count)
     radians = np.deg2rad(angles)
     directions = np.cos(radians)[:, None] * u + np.sin(radians)[:, None] * v
@@ -106,6 +140,8 @@ def sample_plane(
         angles_deg=angles,
         directions=directions,
         values=values,
+        transverse_mode=transverse_mode,
+        plane_normal=plane_normal,
     )
 
 
@@ -121,6 +157,7 @@ def sample_sphere(
         raise ValueError("theta_count must be at least 3.")
     if phi_count < 4:
         raise ValueError("phi_count must be at least 4.")
+    property_name = canonical_property_name(property_name)
 
     theta = np.linspace(0.0, np.pi, theta_count)
     phi = np.linspace(0.0, 2.0 * np.pi, phi_count)
@@ -157,6 +194,7 @@ def sample_sphere(
         max_value=float(values[max_index]),
         min_direction=directions[min_index].copy(),
         max_direction=directions[max_index].copy(),
+        transverse_mode=transverse_mode,
     )
 
 
@@ -181,6 +219,7 @@ def sample_direction_path(
 
     if points_per_segment < 2:
         raise ValueError("points_per_segment must be at least 2.")
+    property_name = canonical_property_name(property_name)
     coerced = [_coerce_path_point(point) for point in points]
     if len(coerced) < 2:
         raise ValueError("At least two path points are required.")
@@ -225,4 +264,7 @@ def sample_direction_path(
         values=values,
         tick_positions=tick_positions,
         tick_labels=labels,
+        transverse_mode=transverse_mode,
+        path_points=np.asarray(vectors, dtype=float),
+        path_labels=tuple(labels),
     )

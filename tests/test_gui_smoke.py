@@ -62,7 +62,7 @@ def test_main_window_exposes_publication_plot_controls(qtbot=None):
 
 def test_main_window_exposes_scientific_dashboard_controls(qtbot=None):
     pytest.importorskip("PySide6")
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QWidget
     from PySide6.QtWidgets import QHeaderView
 
     from crystal_elastic_workbench.gui import MainWindow
@@ -75,7 +75,9 @@ def test_main_window_exposes_scientific_dashboard_controls(qtbot=None):
     assert "Material" in window.material_status_chip.text()
     assert "Crystal" in window.crystal_status_chip.text()
     assert "Unit" in window.unit_status_chip.text()
+    assert window.unit_edit.isReadOnly()
     assert "3D backend" in window.pyvista_status_chip.text()
+    assert len(window.findChildren(QWidget, "metricCard")) == 4
     assert window.analyze_workflow_button.text() == "Analyze + Update Figures"
     assert window.paste_matrix_button.text() == "Paste Matrix"
     assert window.cij_table.horizontalHeader().sectionResizeMode(0) == QHeaderView.Stretch
@@ -130,7 +132,7 @@ def test_analyze_workflow_updates_dashboard_and_default_figures(qtbot=None):
     assert "Si cubic" in window.material_status_chip.text()
     assert "cubic" in window.crystal_status_chip.text()
     assert "GPa" in window.unit_status_chip.text()
-    assert "Stable" in window.workflow_status_label.text()
+    assert window.workflow_status_label.text() == "Checks passed: analysis complete"
     assert "updated" in window.figure_status_label.text().lower()
     assert "Recommended model: Hill" in window.anisotropy_summary_label.text()
     assert window.model_table.item(0, 0).text() == "Voigt"
@@ -190,6 +192,98 @@ def test_non_numeric_cij_cell_is_reported_and_highlighted(qtbot=None):
     app.processEvents()
 
 
+def test_json_import_rejects_non_gpa_without_changing_interface(tmp_path, monkeypatch, qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench import gui as gui_module
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.load_example_by_name("Si cubic")
+    original_matrix = window.read_matrix().copy()
+    original_material = window.material_edit.text()
+    original_system = window.system_combo.currentText()
+    input_path = tmp_path / "non_gpa.json"
+    input_path.write_text(
+        json.dumps(
+            {
+                "stiffness_matrix": (np.eye(6) * 1000.0).tolist(),
+                "material_name": "Should not load",
+                "unit": "MPa",
+                "crystal_system": "hexagonal",
+            }
+        ),
+        encoding="utf-8",
+    )
+    seen = {}
+
+    monkeypatch.setattr(
+        gui_module.QFileDialog,
+        "getOpenFileName",
+        lambda *args, **kwargs: (str(input_path), "JSON (*.json)"),
+    )
+    monkeypatch.setattr(window, "show_error", lambda title, exc: seen.update(title=title, error=str(exc)))
+
+    window.import_json()
+
+    assert seen["title"] == "JSON import failed"
+    assert "converted to GPa before import" in seen["error"]
+    assert np.array_equal(window.read_matrix(), original_matrix)
+    assert window.material_edit.text() == original_material
+    assert window.system_combo.currentText() == original_system
+    assert window.unit_edit.text() == "GPa"
+
+    window.close()
+    app.processEvents()
+
+
+def test_json_import_rejects_nonfinite_matrix_without_changing_interface(tmp_path, monkeypatch, qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench import gui as gui_module
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.load_example_by_name("Si cubic")
+    original_matrix = window.read_matrix().copy()
+    original_material = window.material_edit.text()
+    original_system = window.system_combo.currentText()
+    input_path = tmp_path / "nonfinite.json"
+    payload = json.dumps(
+        {
+            "stiffness_matrix": (np.eye(6) * 1000.0).tolist(),
+            "material_name": "Should not load",
+            "unit": "GPa",
+            "crystal_system": "hexagonal",
+        }
+    ).replace("1000.0", "1e309", 1)
+    input_path.write_text(payload, encoding="utf-8")
+    seen = {}
+
+    monkeypatch.setattr(
+        gui_module.QFileDialog,
+        "getOpenFileName",
+        lambda *args, **kwargs: (str(input_path), "JSON (*.json)"),
+    )
+    monkeypatch.setattr(window, "show_error", lambda title, exc: seen.update(title=title, error=str(exc)))
+
+    window.import_json()
+
+    assert seen["title"] == "JSON import failed"
+    assert "only finite values" in seen["error"]
+    assert np.array_equal(window.read_matrix(), original_matrix)
+    assert window.material_edit.text() == original_material
+    assert window.system_combo.currentText() == original_system
+    assert window.unit_edit.text() == "GPa"
+
+    window.close()
+    app.processEvents()
+
+
 def test_batch_paper_figure_export_writes_pngs_and_manifests(tmp_path, qtbot=None):
     pytest.importorskip("PySide6")
     from PySide6.QtWidgets import QApplication
@@ -216,6 +310,36 @@ def test_batch_paper_figure_export_writes_pngs_and_manifests(tmp_path, qtbot=Non
         exported["surface_png"].with_name(f"{exported['surface_png'].name}.manifest.json").read_text(encoding="utf-8")
     )
     assert surface_manifest["parameters"]["backend"] in {"pyvista", "matplotlib"}
+
+    window.close()
+    app.processEvents()
+
+
+def test_gui_current_figure_sidecar_records_sampling_parameters(tmp_path, monkeypatch, qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench import gui as gui_module
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.load_example_by_name("Si cubic")
+    window.update_line_plot()
+    output = tmp_path / "line.png"
+    monkeypatch.setattr(
+        gui_module.QFileDialog,
+        "getSaveFileName",
+        lambda *args, **kwargs: (str(output), "PNG (*.png)"),
+    )
+
+    window.save_current_figure(window.line_pane, window.current_line_data)
+
+    manifest = json.loads((tmp_path / "line.png.manifest.json").read_text(encoding="utf-8"))
+    assert manifest["parameters"]["property"] == "young"
+    assert "transverse_mode" not in manifest["parameters"]
+    assert "transverse_samples" not in manifest["parameters"]
+    assert manifest["parameters"]["angle_count"] == 361
 
     window.close()
     app.processEvents()

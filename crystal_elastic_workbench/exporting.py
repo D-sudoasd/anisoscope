@@ -83,6 +83,50 @@ def sampled_data_to_frame(data: DirectionPath | PlaneSlice | DirectionalSurface)
     raise TypeError("data must be DirectionPath, PlaneSlice, or DirectionalSurface.")
 
 
+def sampled_data_manifest_parameters(
+    data: DirectionPath | PlaneSlice | DirectionalSurface,
+) -> dict[str, Any]:
+    """Return the sampling choices required to reproduce sampled data."""
+
+    parameters: dict[str, Any] = {
+        "property": data.property_name,
+    }
+    if data.property_name in {"shear", "poisson"}:
+        parameters.update(
+            {
+                "transverse_mode": data.transverse_mode,
+                "transverse_samples": data.transverse_samples,
+            }
+        )
+    if isinstance(data, DirectionPath):
+        parameters.update(
+            {
+                "path_point_count": len(data.tick_labels),
+                "sample_count": int(len(data.values)),
+                "path_labels": list(data.path_labels or data.tick_labels),
+                "path_points": None if data.path_points is None else data.path_points.tolist(),
+            }
+        )
+    elif isinstance(data, PlaneSlice):
+        parameters.update(
+            {
+                "plane": data.plane_label,
+                "angle_count": int(len(data.angles_deg)),
+                "plane_normal": None if data.plane_normal is None else data.plane_normal.tolist(),
+            }
+        )
+    elif isinstance(data, DirectionalSurface):
+        parameters.update(
+            {
+                "theta_count": int(data.theta.shape[0]),
+                "phi_count": int(data.theta.shape[1]),
+            }
+        )
+    else:
+        raise TypeError("data must be DirectionPath, PlaneSlice, or DirectionalSurface.")
+    return parameters
+
+
 def export_sampled_data(
     tensor: ElasticTensor,
     data: DirectionPath | PlaneSlice | DirectionalSurface,
@@ -103,7 +147,7 @@ def export_sampled_data(
         tensor,
         output,
         export_type=f"{kind}_sampled_data",
-        parameters={"property": data.property_name, "rows": int(len(frame))},
+        parameters={**sampled_data_manifest_parameters(data), "rows": int(len(frame))},
     )
     return output
 
@@ -264,6 +308,7 @@ def export_analysis_package(
             "sphere_theta_count": sphere_theta_count,
             "sphere_phi_count": sphere_phi_count,
             "transverse_mode_for_shear_and_poisson": "mean",
+            "transverse_samples_for_shear_and_poisson": 72,
         },
         "files": files,
         "recommended_model": "Hill",
