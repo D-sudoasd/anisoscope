@@ -60,6 +60,12 @@ include = ["anisoscope*", "crystal_elastic_workbench*"]
 testpaths = ["tests"]
 addopts = "-q"
 
+[tool.ruff.lint]
+# Keep the CI lint contract explicit. Ruff 0.16 expanded its implicit default
+# from 59 to 413 rules; relying on that moving default made identical source
+# pass locally with 0.15 and fail after a fresh CI install.
+select = ["E4", "E7", "E9", "F"]
+
 [tool.check-manifest]
 ignore = [
     "paper/**",
