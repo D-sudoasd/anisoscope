@@ -1,30 +1,54 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
   <title id="title">AnisoScope</title>
-  <desc id="desc">Inspect crystal elastic anisotropy from a 6x6 stiffness matrix with directional surfaces and export manifests.</desc>
-  <rect width="1200" height="360" rx="26" fill="#ECE8E0"/>
-  <rect x="0" y="0" width="16" height="360" fill="#4A2F8A"/>
-  <path d="M0 56H1200" stroke="#D4CEC2"/>
-  <g transform="translate(56 44)" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-    <text fill="#5E5A54" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="13" letter-spacing="2.2">CRYSTAL ELASTICITY · VOIGT Cij</text>
-    <text y="100" fill="#14120F" font-size="58" font-weight="780" letter-spacing="-1.8">AnisoScope</text>
-    <text y="148" fill="#3A3630" font-size="23">Directional elastic properties with full provenance.</text>
-    <path d="M0 176H480" stroke="#C4BEB2"/>
-    <g transform="translate(0 212)" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12">
-      <text fill="#14120F">E(n)</text>
-      <text x="72" fill="#5E5A54">β(n)</text>
-      <text x="140" fill="#5E5A54">G · ν</text>
-      <text x="216" fill="#5E5A54">VRH</text>
-      <text x="280" fill="#4A2F8A">MANIFEST</text>
+  <desc id="desc">AnisoScope analyses a supplied stiffness matrix through separate stability diagnostics and compliance-based elastic calculations, then writes traceable outputs.</desc>
+
+  <rect width="1200" height="400" rx="18" fill="#F7F6F2"/>
+  <path d="M0 58H1200" stroke="#D6D8D6"/>
+  <path d="M0 399H1200" stroke="#2F6678" stroke-width="2"/>
+
+  <g transform="translate(54 38)" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
+    <text fill="#68777D" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="15" letter-spacing="2">CRYSTAL ELASTICITY · DESKTOP + PYTHON</text>
+    <text y="102" fill="#202A30" font-size="64" font-weight="700" letter-spacing="-1.5">AnisoScope</text>
+    <text y="150" fill="#36454C" font-size="21">Crystal elastic anisotropy from an explicit Cij tensor.</text>
+    <path d="M0 184H525" stroke="#B7C0C3"/>
+    <text y="224" fill="#B47B3C" font-size="21" font-weight="650">Cij 6 × 6</text>
+    <text x="112" y="224" fill="#68777D" font-size="20">GPa · engineering shear · declared crystal system</text>
+    <text y="266" fill="#2F6678" font-size="21" font-weight="650">Traceable analysis</text>
+    <text y="300" fill="#68777D" font-size="19">diagnostics · VRH · directional sampling · export sidecars</text>
+  </g>
+
+  <g transform="translate(640 78)" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif">
+    <text x="0" y="0" fill="#B47B3C" font-size="18" font-weight="700" letter-spacing="1.2">SUPPLIED Cij</text>
+
+    <g transform="translate(0 36)">
+      <rect width="120" height="120" fill="#FFFFFF" stroke="#202A30" stroke-width="1.5"/>
+      <g stroke="#B7C0C3">
+        <path d="M20 0V120M40 0V120M60 0V120M80 0V120M100 0V120"/>
+        <path d="M0 20H120M0 40H120M0 60H120M0 80H120M0 100H120"/>
+      </g>
+      <path d="M0 0L120 120" stroke="#B47B3C" stroke-width="2" opacity="0.65"/>
     </g>
-    <text y="274" fill="#7A7468" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12">correctness first · then publication figures</text>
+
+    <path d="M130 63H184V32H222" fill="none" stroke="#68777D" stroke-width="2" stroke-dasharray="6 5"/>
+    <path d="M214 26L224 32L214 38" fill="none" stroke="#68777D" stroke-width="2"/>
+    <text x="236" y="39" fill="#202A30" font-size="21" font-weight="650">stability</text>
+
+    <path d="M130 110H196" stroke="#2F6678" stroke-width="2"/>
+    <path d="M188 104L198 110L188 116" fill="none" stroke="#2F6678" stroke-width="2"/>
+    <text x="145" y="96" fill="#68777D" font-size="20">invert</text>
+    <text x="212" y="117" fill="#2F6678" font-size="22" font-weight="700">Sij</text>
+
+    <path d="M242 110H286" stroke="#2F6678" stroke-width="2"/>
+    <circle cx="292" cy="110" r="4" fill="#2F6678"/>
+    <path d="M292 110V181M292 127H326M292 181H326" fill="none" stroke="#9EACB1" stroke-width="1.5"/>
+    <text x="338" y="134" fill="#202A30" font-size="21" font-weight="650">VRH</text>
+    <text x="338" y="188" fill="#202A30" font-size="21" font-weight="650">directions</text>
+
+    <path d="M416 32H428V181M416 127H428M416 181H428M428 107H442" fill="none" stroke="#9EACB1" stroke-width="1.5"/>
+    <path d="M434 101L444 107L434 113" fill="none" stroke="#2F6678" stroke-width="2"/>
+    <rect x="452" y="82" width="78" height="50" fill="#E8F0F2"/>
+    <text x="491" y="114" text-anchor="middle" fill="#2F6678" font-size="18" font-weight="700">outputs</text>
   </g>
-  <g transform="translate(720 48)" fill="none" stroke="#4A2F8A" stroke-width="1.6">
-    <rect width="420" height="264" fill="#14120F" stroke="#2A2630"/>
-    <ellipse cx="210" cy="120" rx="140" ry="88" stroke="#7C5CC8"/>
-    <ellipse cx="210" cy="120" rx="100" ry="58" stroke="#A890E0"/>
-    <ellipse cx="210" cy="120" rx="58" ry="30" stroke="#C8B8F0"/>
-    <path d="M70 120H350 M210 32V208" stroke="#3A3640" stroke-width="1"/>
-    <text x="28" y="248" fill="#7A7488" stroke="none" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12">1D paths · 2D polar · 3D surface · GIF/MP4</text>
-  </g>
-  <text x="1144" y="336" text-anchor="end" fill="#8A8478" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="12">D-sudoasd / anisoscope</text>
+
+  <text x="1146" y="376" text-anchor="end" fill="#68777D" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14">D-sudoasd / anisoscope</text>
 </svg>

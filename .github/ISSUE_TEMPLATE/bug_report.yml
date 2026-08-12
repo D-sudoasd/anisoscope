@@ -1,0 +1,56 @@
+name: Bug report
+description: Report reproducible incorrect behavior or a numerical discrepancy.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove confidential or unpublished data. For security issues, follow SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: AnisoScope version or commit
+      placeholder: 0.1.0 or full commit hash
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Python version, and installation method.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Include a minimal non-confidential matrix or script when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result and evidence
+      description: State the expected value or behavior and how it was derived.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include the full error and relevant manifest fields.
+    validations:
+      required: true
+  - type: textarea
+    id: convention
+    attributes:
+      label: Scientific convention
+      description: Units, Voigt order, shear convention, crystal system, temperature, and pressure when relevant.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed confidential data and searched existing issues.
+          required: true

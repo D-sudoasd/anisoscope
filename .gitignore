@@ -17,3 +17,11 @@ venv/
 
 outputs/
 *.manifest.json
+
+# Open Journals build products (sources and figures remain tracked)
+paper/paper.pdf
+paper/paper.jats
+paper/paper.crossref
+paper/paper.preprint.pdf
+paper/publishing-artifacts/
+paper/media/
