@@ -97,19 +97,36 @@ def render3d_style_parameters(options: Render3DOptions) -> dict[str, object]:
 
 
 def pyvista_status() -> PyVistaStatus:
+    if os.environ.get("ANISOSCOPE_DISABLE_PYVISTA", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return PyVistaStatus(
+            False,
+            "PyVista/VTK backend is disabled by ANISOSCOPE_DISABLE_PYVISTA; "
+            "unset it or set it to 0 to re-enable the backend.",
+        )
     if importlib.util.find_spec("pyvista") is None:
-        return PyVistaStatus(False, "PyVista/VTK backend is unavailable: pyvista is not installed.")
+        return PyVistaStatus(
+            False,
+            "PyVista/VTK backend is unavailable: pyvista is not installed. "
+            "Install pyvista and vtk, then restart the application.",
+        )
     if importlib.util.find_spec("vtk") is None:
-        return PyVistaStatus(False, "PyVista/VTK backend is unavailable: vtk is not installed.")
+        return PyVistaStatus(
+            False,
+            "PyVista/VTK backend is unavailable: vtk is not installed. "
+            "Install pyvista and vtk, then restart the application.",
+        )
     return PyVistaStatus(True, "PyVista/VTK backend is available.")
 
 
 def _import_pyvista():
     status = pyvista_status()
     if not status.available:
-        raise PyVistaUnavailableError(
-            f"{status.message} Install pyvista and vtk, then restart the application."
-        )
+        raise PyVistaUnavailableError(status.message)
     os.environ.setdefault("PYVISTA_OFF_SCREEN", "true")
     try:
         import pyvista as pv

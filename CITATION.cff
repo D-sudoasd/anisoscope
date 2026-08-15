@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use AnisoScope, please cite it using this metadata."
+type: software
+title: "AnisoScope"
+version: "0.1.0"
+authors:
+  - family-names: Gong
+    given-names: Delun
+    orcid: "https://orcid.org/0000-0001-7877-7707"
+    affiliation: "Institute of Metal Research, Chinese Academy of Sciences, Shenyang, China"
+license: MIT
+repository-code: "https://github.com/D-sudoasd/anisoscope"
+url: "https://github.com/D-sudoasd/anisoscope"

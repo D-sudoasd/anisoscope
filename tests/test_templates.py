@@ -45,3 +45,32 @@ def test_example_materials_include_stable_cubic_silicon():
     assert silicon.unit == "GPa"
     assert silicon.matrix.shape == (6, 6)
     assert result.overall_stable
+
+
+def test_hexagonal_and_trigonal_templates_derive_dependent_c66():
+    constants = {
+        "C11": 220.0,
+        "C12": 80.0,
+        "C13": 70.0,
+        "C33": 240.0,
+        "C44": 60.0,
+    }
+
+    for system in ("hexagonal", "trigonal"):
+        matrix = apply_crystal_template(system, constants)
+        assert matrix[5, 5] == 0.5 * (constants["C11"] - constants["C12"])
+
+
+def test_hexagonal_and_trigonal_templates_reject_inconsistent_c66():
+    constants = {
+        "C11": 220.0,
+        "C12": 80.0,
+        "C13": 70.0,
+        "C33": 240.0,
+        "C44": 60.0,
+        "C66": 999.0,
+    }
+
+    for system in ("hexagonal", "trigonal"):
+        with np.testing.assert_raises_regex(ValueError, "C66 is symmetry-dependent"):
+            apply_crystal_template(system, constants)

@@ -52,6 +52,7 @@ from crystal_elastic_workbench.exporting import (
     export_elastic_model_table,
     export_analysis_package,
     export_sampled_data,
+    sampled_data_manifest_parameters,
     write_export_manifest,
 )
 from crystal_elastic_workbench.elastic_models import (
@@ -237,6 +238,8 @@ class MainWindow(QMainWindow):
         form = QFormLayout(metadata)
         self.material_edit = QLineEdit("Untitled")
         self.unit_edit = QLineEdit("GPa")
+        self.unit_edit.setReadOnly(True)
+        self.unit_edit.setToolTip("AnisoScope currently accepts stiffness values in GPa only.")
         self.system_combo = QComboBox()
         self.system_combo.addItems(CRYSTAL_SYSTEMS)
         self.example_combo = QComboBox()
@@ -374,13 +377,19 @@ class MainWindow(QMainWindow):
         ]
         self.metric_labels: dict[str, QLabel] = {}
         for index, (key, label) in enumerate(metric_specs):
+            metric_card = QWidget()
+            metric_card.setObjectName("metricCard")
+            metric_layout = QVBoxLayout(metric_card)
+            metric_layout.setContentsMargins(10, 8, 10, 8)
+            metric_layout.setSpacing(4)
             title = QLabel(label)
             title.setObjectName("metricTitle")
             value = QLabel("-")
             value.setObjectName("metricValue")
             self.metric_labels[key] = value
-            metrics_grid.addWidget(title, 0, index)
-            metrics_grid.addWidget(value, 1, index)
+            metric_layout.addWidget(title)
+            metric_layout.addWidget(value)
+            metrics_grid.addWidget(metric_card, index // 2, index % 2)
         layout.addWidget(metrics_group)
 
         anisotropy_group = QGroupBox("Anisotropy and Figure State")
@@ -452,7 +461,7 @@ class MainWindow(QMainWindow):
         save_button = QPushButton("Save Figure")
         save_data_button = QPushButton("Save Data")
         line_button.clicked.connect(self.update_line_plot)
-        save_button.clicked.connect(lambda: self.save_current_figure(self.line_pane))
+        save_button.clicked.connect(lambda: self.save_current_figure(self.line_pane, self.current_line_data))
         save_data_button.clicked.connect(lambda: self.save_sampled_data("line"))
         controls.addWidget(QLabel("Property"))
         controls.addWidget(self.line_property_combo)
@@ -483,7 +492,7 @@ class MainWindow(QMainWindow):
         save_button = QPushButton("Save Figure")
         save_data_button = QPushButton("Save Data")
         polar_button.clicked.connect(self.update_polar_plot)
-        save_button.clicked.connect(lambda: self.save_current_figure(self.polar_pane))
+        save_button.clicked.connect(lambda: self.save_current_figure(self.polar_pane, self.current_polar_data))
         save_data_button.clicked.connect(lambda: self.save_sampled_data("polar"))
         controls.addWidget(QLabel("Property"))
         controls.addWidget(self.polar_property_combo)
@@ -673,7 +682,7 @@ class MainWindow(QMainWindow):
         self.update_surface_plot()
         self.last_analysis_time = datetime.now()
         self._update_dashboard_after_analysis()
-        self._update_workflow_status("Stable: analysis complete" if stability.overall_stable else "Warning: check stability")
+        self._update_workflow_status("Checks passed: analysis complete" if stability.overall_stable else "Warning: check diagnostics")
 
     def fill_stability(self, stability: StabilityResult) -> None:
         payload = stability.as_dict()
@@ -888,16 +897,35 @@ class MainWindow(QMainWindow):
         try:
             payload = json.loads(Path(path).read_text(encoding="utf-8"))
             matrix = payload.get("stiffness_matrix", payload.get("matrix")) if isinstance(payload, dict) else payload
-            self.populate_matrix(np.asarray(matrix, dtype=float).reshape(6, 6))
+            imported_matrix = np.asarray(matrix, dtype=float).reshape(6, 6)
+            if not np.all(np.isfinite(imported_matrix)):
+                raise ValueError("JSON stiffness matrix must contain only finite values.")
+            imported_unit = "GPa"
+            imported_system_index = -1
+            if isinstance(payload, dict):
+                if "unit" in payload:
+                    imported_unit = str(payload["unit"]).strip()
+                    if imported_unit.casefold() != "gpa":
+                        raise ValueError(
+                            "JSON stiffness values must be converted to GPa before import; "
+                            f"received unit {imported_unit!r}."
+                        )
+                if "crystal_system" in payload:
+                    imported_system_index = self.system_combo.findText(str(payload["crystal_system"]))
+                    if imported_system_index < 0:
+                        raise ValueError(
+                            f"Unsupported crystal system {payload['crystal_system']!r} in JSON input."
+                        )
+
+            # Apply the validated payload together so a rejected unit or crystal
+            # system cannot leave the read-only interface in a partial state.
+            self.populate_matrix(imported_matrix)
+            self.unit_edit.setText("GPa")
             if isinstance(payload, dict):
                 if "material_name" in payload:
                     self.material_edit.setText(str(payload["material_name"]))
-                if "unit" in payload:
-                    self.unit_edit.setText(str(payload["unit"]))
-                if "crystal_system" in payload:
-                    index = self.system_combo.findText(str(payload["crystal_system"]))
-                    if index >= 0:
-                        self.system_combo.setCurrentIndex(index)
+                if imported_system_index >= 0:
+                    self.system_combo.setCurrentIndex(imported_system_index)
         except Exception as exc:
             self.show_error("JSON import failed", exc)
 
@@ -1074,7 +1102,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.show_error("MP4 export failed", exc)
 
-    def save_current_figure(self, pane: FigurePane) -> None:
+    def save_current_figure(self, pane: FigurePane, sampled_data) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Save figure",
@@ -1084,6 +1112,8 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
+            if sampled_data is None:
+                raise RuntimeError("Plot the current figure before saving it.")
             pane.save_figure(
                 path,
                 dpi=self.export_dpi_spin.value(),
@@ -1094,6 +1124,7 @@ class MainWindow(QMainWindow):
                 path,
                 export_type="figure",
                 parameters={
+                    **sampled_data_manifest_parameters(sampled_data),
                     "dpi": self.export_dpi_spin.value(),
                     "theme": self.theme_combo.currentText(),
                     "palette": self.palette_combo.currentText(),

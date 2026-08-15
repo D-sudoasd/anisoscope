@@ -1,0 +1,75 @@
+{
+  "capture_utc": "2026-08-12T06:41:25.713079+00:00",
+  "generator": "paper/figures/capture_interface.py",
+  "qt_platform": "offscreen",
+  "window_logical_pixels": [
+    1952,
+    973
+  ],
+  "window_physical_pixels": [
+    5856,
+    2919
+  ],
+  "device_pixel_ratio": 3.0,
+  "image_pixels": [
+    2400,
+    1294
+  ],
+  "source_widgets": {
+    "input_group_pixels": [
+      984,
+      504
+    ],
+    "matrix_group_pixels": [
+      984,
+      942
+    ],
+    "dashboard_status_pixels": [
+      4680,
+      105
+    ],
+    "dashboard_metric_card_pixels": [
+      [
+        2277,
+        189
+      ],
+      [
+        2277,
+        189
+      ],
+      [
+        2277,
+        189
+      ],
+      [
+        2277,
+        189
+      ]
+    ]
+  },
+  "composition": {
+    "panel_a": "real Input and Cij Matrix group captures; uniformly scaled to the compact panel width",
+    "panel_b": "real dashboard status and four metric-card widget captures arranged in a 2x2 grid",
+    "panel_gap_px": 54,
+    "dashboard_padding_px": 54,
+    "panel_letters": "layout annotations drawn by QPainter; all scientific labels and values come from Qt widgets",
+    "metric_layout": "2x2 with neutral card backgrounds",
+    "metric_cell_processing": "top-left content crop from each complete real widget; no values or labels redrawn",
+    "panel_a_scale": 0.8130081300813008
+  },
+  "final_width_mm": 183,
+  "logical_font_px_estimate": 12,
+  "physical_font_px_estimate_before_panel_scaling": 36.0,
+  "final_font_pt_estimate": 6.326099481467255,
+  "font_estimate_formula": "physical_px / output_width_px * final_width_mm / 25.4 * 72",
+  "png_dpi": 333,
+  "example": "Si cubic",
+  "stiffness_gpa": {
+    "C11": 165.7,
+    "C12": 63.9,
+    "C44": 79.6
+  },
+  "workflow_status": "Checks passed: analysis complete",
+  "sha256": "bd9c811bebdf2da02594215a6e6babdba54fcfd7531c1408d85da2eb6e9c423f",
+  "note": "All content is from real Qt widgets. The real GUI includes a dynamic Last analysis timestamp; the capture time is recorded here."
+}

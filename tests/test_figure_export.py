@@ -72,3 +72,7 @@ def test_surface_figure_export_falls_back_to_matplotlib_and_records_manifest(tmp
     assert manifest["parameters"]["specular"] == 0.32
     assert manifest["parameters"]["specular_power"] == 28.0
     assert manifest["parameters"]["property"] == "young"
+    assert manifest["parameters"]["theta_count"] == 5
+    assert manifest["parameters"]["phi_count"] == 9
+    assert "transverse_mode" not in manifest["parameters"]
+    assert "transverse_samples" not in manifest["parameters"]

@@ -112,9 +112,16 @@ class ElasticTensor:
         if symmetrize:
             matrix = 0.5 * (matrix + matrix.T)
 
+        normalized_unit = unit.strip()
+        if normalized_unit.casefold() != "gpa":
+            raise ValueError(
+                "unit must be 'GPa'; the current public API and result labels do not "
+                "perform unit conversion."
+            )
+
         self.stiffness_matrix = matrix
         self.crystal_system = crystal_system.lower().strip()
-        self.unit = unit
+        self.unit = "GPa"
         self.material_name = material_name
         self.compliance_matrix = np.linalg.inv(matrix)
         self.condition_number = float(np.linalg.cond(matrix))
@@ -274,8 +281,10 @@ class ElasticTensor:
             return self.youngs_modulus(direction)
         if name in {"compressibility", "beta"}:
             return self.linear_compressibility(direction)
-        if name in {"shear", "g"}:
-            return self.transverse_scan(direction, property_name="shear")[transverse_mode]
-        if name in {"poisson", "nu"}:
-            return self.transverse_scan(direction, property_name="poisson")[transverse_mode]
+        if name in {"shear", "g", "poisson", "nu"}:
+            mode = transverse_mode.lower()
+            if mode not in {"min", "max", "mean"}:
+                raise ValueError("transverse_mode must be 'min', 'max', or 'mean'.")
+            scan_property = "shear" if name in {"shear", "g"} else "poisson"
+            return self.transverse_scan(direction, property_name=scan_property)[mode]
         raise ValueError(f"Unsupported directional property: {property_name}")

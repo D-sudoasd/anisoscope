@@ -17,7 +17,7 @@ def test_build_dashboard_state_formats_stable_summary_and_figures():
 
     state = build_dashboard_state(summary, stability, figures_generated=True)
 
-    assert state.status_text.startswith("Stable")
+    assert state.status_text.startswith("Checks passed")
     assert state.metrics["B_H"].endswith("GPa")
     assert state.metrics["G_H"].endswith("GPa")
     assert state.metrics["E_H"].endswith("GPa")
@@ -36,3 +36,19 @@ def test_build_dashboard_state_reports_incomplete_figures():
     state = build_dashboard_state(summary, stability, figures_generated=False)
 
     assert state.figure_text == "Figures: incomplete; check plot tabs"
+
+
+def test_dashboard_does_not_claim_born_checks_for_triclinic_input():
+    matrix = EXAMPLE_MATERIALS["Si cubic"].matrix
+    tensor = ElasticTensor(matrix, crystal_system="triclinic")
+    summary = tensor.polycrystalline_summary().as_dict()
+    stability = check_stability(matrix, crystal_system="triclinic")
+
+    state = build_dashboard_state(summary, stability, figures_generated=True)
+
+    assert stability.overall_stable
+    assert not stability.born_criteria_applied
+    assert stability.born_stable is None
+    assert stability.matches_crystal_system is None
+    assert state.status_text.startswith("Numerical matrix checks passed")
+    assert "Born" not in state.status_text

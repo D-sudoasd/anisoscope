@@ -35,6 +35,12 @@ def _symmetrize(matrix: np.ndarray) -> np.ndarray:
     return matrix + matrix.T - np.diag(np.diag(matrix))
 
 
+def _dependent_constant(constants: Mapping[str, float], name: str, expected: float) -> float:
+    if name in constants and not np.isclose(float(constants[name]), expected, rtol=1e-6, atol=1e-8):
+        raise ValueError(f"{name} is symmetry-dependent for this template and must equal {expected:.8g}.")
+    return float(expected)
+
+
 def apply_crystal_template(crystal_system: str, constants: Mapping[str, float]) -> np.ndarray:
     """Build a 6x6 Voigt stiffness matrix from independent constants.
 
@@ -63,7 +69,7 @@ def apply_crystal_template(crystal_system: str, constants: Mapping[str, float]) 
         c13 = _get(constants, "C13")
         c33 = _get(constants, "C33")
         c44 = _get(constants, "C44")
-        c66 = _get(constants, "C66", default=0.5 * (c11 - c12))
+        c66 = _dependent_constant(constants, "C66", 0.5 * (c11 - c12))
         c = _blank()
         c[0, 0] = c[1, 1] = c11
         c[2, 2] = c33
@@ -100,7 +106,7 @@ def apply_crystal_template(crystal_system: str, constants: Mapping[str, float]) 
         c14 = _get(constants, "C14", default=0.0)
         c33 = _get(constants, "C33")
         c44 = _get(constants, "C44")
-        c66 = _get(constants, "C66", default=0.5 * (c11 - c12))
+        c66 = _dependent_constant(constants, "C66", 0.5 * (c11 - c12))
         c = _blank()
         c[0, 0] = c[1, 1] = c11
         c[2, 2] = c33

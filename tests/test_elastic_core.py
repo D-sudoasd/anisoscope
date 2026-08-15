@@ -5,6 +5,7 @@ import pytest
 
 from crystal_elastic_workbench.core import ElasticTensor
 from crystal_elastic_workbench.stability import check_stability
+from crystal_elastic_workbench.templates import apply_crystal_template
 
 
 def isotropic_cubic_matrix(bulk_gpa: float = 160.0, shear_gpa: float = 80.0) -> np.ndarray:
@@ -81,6 +82,72 @@ def test_stability_reports_positive_definite_and_born_rules():
     assert any("C44 > 0" in item for item in unstable.failed_conditions)
 
 
+def test_stability_rejects_matrix_that_does_not_match_selected_crystal_system():
+    not_cubic = isotropic_cubic_matrix(160.0, 80.0)
+    not_cubic[1, 1] = 500.0
+
+    result = check_stability(not_cubic, crystal_system="cubic")
+
+    assert result.is_positive_definite
+    assert not result.matches_crystal_system
+    assert not result.overall_stable
+    assert "crystal-system relation C11 = C22" in result.failed_conditions
+
+
+def test_stability_rejects_hexagonal_matrix_with_inconsistent_c66():
+    matrix = apply_crystal_template(
+        "hexagonal",
+        {"C11": 220.0, "C12": 80.0, "C13": 70.0, "C33": 240.0, "C44": 60.0},
+    )
+    matrix[5, 5] = 1.0
+
+    result = check_stability(matrix, crystal_system="hexagonal")
+
+    assert result.is_positive_definite
+    assert not result.matches_crystal_system
+    assert not result.overall_stable
+    assert "crystal-system relation C66 = (C11 - C12)/2" in result.failed_conditions
+
+
+def test_stability_marks_unapplied_monoclinic_and_triclinic_checks_as_not_evaluated():
+    matrix = isotropic_cubic_matrix(160.0, 80.0)
+
+    for system in ("monoclinic", "triclinic"):
+        result = check_stability(matrix, crystal_system=system)
+        assert not result.crystal_system_relations_checked
+        assert result.matches_crystal_system is None
+        assert not result.born_criteria_applied
+        assert result.born_stable is None
+        assert result.overall_stable
+
+
+def test_unknown_crystal_system_fails_closed():
+    result = check_stability(np.eye(6), crystal_system="not-a-system")
+
+    assert not result.crystal_system_relations_checked
+    assert result.matches_crystal_system is None
+    assert not result.overall_stable
+    assert result.failed_conditions == [
+        "supported crystal system ('not-a-system' is unknown)"
+    ]
+
+
+def test_rhombohedral_alias_applies_trigonal_born_criteria_and_fails_closed():
+    matrix = apply_crystal_template(
+        "rhombohedral",
+        {"C11": 220.0, "C12": 80.0, "C13": 70.0, "C14": 90.0, "C33": 240.0, "C44": 60.0},
+    )
+
+    result = check_stability(matrix, crystal_system="rhombohedral")
+
+    assert result.crystal_system_relations_checked
+    assert result.matches_crystal_system
+    assert result.born_criteria_applied
+    assert result.born_stable is False
+    assert result.overall_stable is False
+    assert any("(C11 - C12)*C44 > 2*C14^2" in item for item in result.failed_conditions)
+
+
 def test_rejects_invalid_direction_and_non_orthogonal_transverse_direction():
     tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
 
@@ -97,3 +164,22 @@ def test_roundtrip_compliance_inverts_stiffness_matrix():
 
     assert np.linalg.norm(matrix @ tensor.compliance_matrix - np.eye(6)) < 1e-10
     assert math.isfinite(tensor.condition_number)
+
+
+def test_directional_property_rejects_unknown_transverse_mode():
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+
+    with pytest.raises(ValueError, match="transverse_mode"):
+        tensor.directional_property(
+            [1.0, 0.0, 0.0],
+            property_name="shear",
+            transverse_mode="median",
+        )
+
+
+def test_tensor_accepts_only_gpa_and_normalizes_unit_label():
+    tensor = ElasticTensor(isotropic_cubic_matrix(), unit="gpa")
+    assert tensor.unit == "GPa"
+
+    with pytest.raises(ValueError, match="unit must be 'GPa'"):
+        ElasticTensor(isotropic_cubic_matrix(), unit="MPa")

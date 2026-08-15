@@ -29,7 +29,10 @@ def build_dashboard_state(
     figures_generated: bool,
 ) -> DashboardState:
     if stability.overall_stable:
-        status_text = "Stable: Cij passed symmetry, invertibility, positive-definite, and Born checks."
+        if stability.crystal_system_relations_checked and stability.born_criteria_applied:
+            status_text = "Checks passed: matrix, selected-system, and implemented Born diagnostics."
+        else:
+            status_text = "Numerical matrix checks passed; see warnings for system-specific checks not applied."
     else:
         problem_text = ", ".join(stability.failed_conditions) if stability.failed_conditions else "see stability details"
         status_text = f"Warning: stability checks need review ({problem_text})."

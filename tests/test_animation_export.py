@@ -63,6 +63,10 @@ def test_gif_animation_export_writes_manifest_and_forwards_scientific_style_opti
     manifest = json.loads(output.with_name(f"{output.name}.manifest.json").read_text(encoding="utf-8"))
     assert manifest["export_type"] == "gif"
     assert manifest["parameters"]["property"] == "young"
+    assert manifest["parameters"]["theta_count"] == 5
+    assert manifest["parameters"]["phi_count"] == 9
+    assert "transverse_mode" not in manifest["parameters"]
+    assert "transverse_samples" not in manifest["parameters"]
     assert manifest["parameters"]["palette"] == "Viridis Refined"
     assert manifest["parameters"]["palette_category"] == "sequential"
     assert manifest["parameters"]["compose_annotations"] is False
@@ -101,6 +105,10 @@ def test_mp4_animation_export_writes_manifest_without_requiring_ffmpeg(tmp_path,
     manifest = json.loads(output.with_name(f"{output.name}.manifest.json").read_text(encoding="utf-8"))
     assert manifest["export_type"] == "mp4"
     assert manifest["parameters"]["property"] == "young"
+    assert manifest["parameters"]["theta_count"] == 5
+    assert manifest["parameters"]["phi_count"] == 9
+    assert "transverse_mode" not in manifest["parameters"]
+    assert "transverse_samples" not in manifest["parameters"]
     assert manifest["parameters"]["frames"] == 13
     assert manifest["parameters"]["palette"] == "Nature Surface"
     assert manifest["parameters"]["palette_category"] == "sequential"

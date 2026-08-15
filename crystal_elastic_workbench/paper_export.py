@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 
 from crystal_elastic_workbench.core import ElasticTensor
-from crystal_elastic_workbench.exporting import write_export_manifest
+from crystal_elastic_workbench.exporting import sampled_data_manifest_parameters, write_export_manifest
 from crystal_elastic_workbench.plot_styles import DEFAULT_3D_PALETTE_NAME
 from crystal_elastic_workbench.render3d import PyVistaUnavailableError, Render3DOptions, render3d_style_parameters
 from crystal_elastic_workbench.sampling import DirectionPath, DirectionalSurface, PlaneSlice
@@ -119,7 +119,7 @@ def export_paper_figures(
             "theme": opts.theme_name,
             "palette": opts.palette_name,
             "transparent_background": opts.transparent_background,
-            "property": line_data.property_name,
+            **sampled_data_manifest_parameters(line_data),
         },
     )
     exported["line_png"] = line_path
@@ -137,7 +137,7 @@ def export_paper_figures(
             "theme": opts.theme_name,
             "palette": opts.palette_name,
             "transparent_background": opts.transparent_background,
-            "property": polar_data.property_name,
+            **sampled_data_manifest_parameters(polar_data),
         },
     )
     exported["polar_png"] = polar_path
@@ -167,7 +167,7 @@ def export_paper_figures(
             "palette": opts.surface_palette_name,
             "transparent_background": opts.transparent_background,
             **render3d_style_parameters(render_options),
-            "property": surface.property_name,
+            **sampled_data_manifest_parameters(surface),
         },
     )
     exported["surface_png"] = surface_path
