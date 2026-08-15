@@ -69,6 +69,20 @@ def test_render3d_style_parameters_include_palette_and_annotation_metadata():
     assert parameters["colorbar_tick_size"] == 10
 
 
+def test_pyvista_backend_can_be_disabled_for_unsupported_headless_hosts(monkeypatch):
+    monkeypatch.setenv("ANISOSCOPE_DISABLE_PYVISTA", "1")
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    surface = sample_sphere(tensor, property_name="young", theta_count=5, phi_count=9)
+
+    status = pyvista_status()
+
+    assert status.available is False
+    assert "ANISOSCOPE_DISABLE_PYVISTA" in status.message
+    assert "unset it or set it to 0" in status.message
+    with pytest.raises(PyVistaUnavailableError, match="unset it or set it to 0"):
+        render_surface_image(surface, options=Render3DOptions(window_size=(320, 260)))
+
+
 def test_render_surface_image_returns_nonblank_preview_or_clear_unavailable_message():
     tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
     surface = sample_sphere(tensor, property_name="young", theta_count=5, phi_count=9)

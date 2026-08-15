@@ -203,6 +203,12 @@ figure export can use a Matplotlib fallback. Sequential palettes should be used
 for non-negative moduli or magnitudes; diverging palettes are appropriate only
 for quantities with a meaningful center or sign change.
 
+On a headless host where VTK cannot create a stable graphics context, set
+`ANISOSCOPE_DISABLE_PYVISTA=1` to force the Matplotlib fallback. The accepted
+true values are `1`, `true`, `yes`, and `on` (case-insensitive); unset the
+variable or set it to `0` for the default PyVista preference. This switch affects
+only the 3D rendering backend, not tensor analysis, stability checks, or sampling.
+
 ## Documentation
 
 - [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md): input, analysis, interpretation,

@@ -109,8 +109,12 @@ small result package.
   and that the correct environment owns the `anisoscope` command.
 - **A matrix cannot be inverted:** check for missing rows, wrong units, duplicated
   axes, or a singular/ill-conditioned tensor.
-- **A plot is blank in a remote session:** use static Matplotlib export or set up
-  a working off-screen VTK/OpenGL environment.
+- **A plot is blank or VTK is unstable in a remote/headless session:** set
+  `ANISOSCOPE_DISABLE_PYVISTA=1` to force the Matplotlib fallback, or configure
+  a working off-screen VTK/OpenGL environment. Accepted true values are `1`,
+  `true`, `yes`, and `on` (case-insensitive); unset the variable or set it to
+  `0` to restore the default PyVista preference. This changes only the 3D
+  rendering backend, not tensor analysis, stability checks, or sampling.
 - **MP4 export fails:** install `ffmpeg` and confirm it is on `PATH`, or export a
   GIF instead.
 - **Numbers differ from another package:** first compare Voigt order, shear

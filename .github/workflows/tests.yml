@@ -37,6 +37,10 @@ jobs:
       - name: Run static checks
         run: python -m ruff check .
       - name: Run tests
+        env:
+          # VTK can terminate Windows Server runners with a native access
+          # violation. Linux still exercises the PyVista backend directly.
+          ANISOSCOPE_DISABLE_PYVISTA: ${{ runner.os == 'Windows' && '1' || '0' }}
         run: python -m pytest -q
 
   package:

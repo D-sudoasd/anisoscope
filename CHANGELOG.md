@@ -14,6 +14,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Continuous-integration checks for tests, package builds, metadata validation,
   and clean-environment wheel smoke tests.
 - A command-line minimal example using a synthetic isotropic tensor.
+- An `ANISOSCOPE_DISABLE_PYVISTA` switch that forces the Matplotlib 3D fallback
+  on unsupported remote or headless hosts without changing scientific results.
 
 ### Changed
 
@@ -33,6 +35,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Recorded sampling grids and transverse aggregation in figure, animation, and
   sampled-data sidecar manifests, including the fixed 72-point transverse scan.
 - Reported unsupported transverse aggregation modes as a clear `ValueError`.
+- Stabilized CI linting across Ruff default-rule changes and isolated native
+  PyVista rendering from unsupported Windows Server test environments.
 
 ## [0.1.0] - not yet tagged
 
