@@ -21,6 +21,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Expanded the README so installation, use, scientific conventions, exports,
   limitations, and maintenance pathways are directly reviewable.
+- Direction paths interpolate on the sphere and record that convention, plus a
+  radian distance unit, in sampled-data sidecars.
+- The desktop workflow now gates exports on a completed analysis, wraps the
+  3D/1D/2D toolbars, and uses status colors for ready, dirty, warning, and
+  error states.
 
 ### Fixed
 
@@ -37,6 +42,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reported unsupported transverse aggregation modes as a clear `ValueError`.
 - Stabilized CI linting across Ruff default-rule changes and isolated native
   PyVista rendering from unsupported Windows Server test environments.
+- Cleared cached scalars and figures after matrix or crystal-system edits so
+  the dashboard cannot show a previous Hill result as current.
+- Stopped a material-name keystroke from wiping a completed analysis.
+- Reported matrix-level symmetry, invertibility, and positive-definiteness
+  failures in `failed_conditions` instead of only in flags.
+- Rejected `.xls` model-table paths and transparent MP4 export before writing
+  files; applied GIF transparency through Matplotlib instead of recording an
+  unused option.
+- Reported CSV/Excel read errors and kept stability diagnostics when derived
+  polycrystalline analysis fails.
 
 ## [0.1.0] - not yet tagged
 

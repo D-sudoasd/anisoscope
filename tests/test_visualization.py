@@ -1,5 +1,6 @@
 import matplotlib
 import numpy as np
+import pytest
 
 matplotlib.use("Agg")
 
@@ -104,3 +105,60 @@ def test_export_rotating_mp4_prefers_pyvista_backend(tmp_path, monkeypatch):
     assert seen["kwargs"]["options"].surface_subdivision == 2
     assert seen["kwargs"]["options"].specular == 0.4
     assert mp4_path.read_bytes() == b"mp4 bytes"
+
+
+def test_animation_rotation_parameters_fail_closed(tmp_path):
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    surface = sample_sphere(tensor, property_name="young", theta_count=3, phi_count=5)
+
+    with pytest.raises(ValueError, match="fps"):
+        export_rotating_gif(surface, tmp_path / "bad-fps.gif", backend="matplotlib", frames=2, fps=0)
+
+    with pytest.raises(ValueError, match="axis"):
+        export_rotating_gif(
+            surface,
+            tmp_path / "bad-axis.gif",
+            backend="matplotlib",
+            frames=2,
+            fps=1,
+            axis="bad",
+        )
+
+
+def test_transparent_gif_skips_pyvista_and_uses_matplotlib(tmp_path, monkeypatch):
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    surface = sample_sphere(tensor, property_name="young", theta_count=3, phi_count=5)
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("PyVista GIF path should be skipped for transparent backgrounds")
+
+    monkeypatch.setattr("crystal_elastic_workbench.visualization.render_surface_gif", fail_if_called)
+    gif_path = tmp_path / "transparent.gif"
+
+    export_rotating_gif(
+        surface,
+        gif_path,
+        backend="auto",
+        frames=2,
+        fps=1,
+        dpi=40,
+        transparent_background=True,
+    )
+
+    assert gif_path.exists()
+    assert gif_path.stat().st_size > 0
+
+
+def test_transparent_gif_rejects_explicit_pyvista_backend(tmp_path):
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    surface = sample_sphere(tensor, property_name="young", theta_count=3, phi_count=5)
+
+    with pytest.raises(ValueError, match="transparent"):
+        export_rotating_gif(
+            surface,
+            tmp_path / "pyvista-transparent.gif",
+            backend="pyvista",
+            frames=2,
+            fps=1,
+            transparent_background=True,
+        )

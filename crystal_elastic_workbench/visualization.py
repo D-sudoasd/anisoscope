@@ -24,6 +24,7 @@ from crystal_elastic_workbench.plot_styles import (
 from crystal_elastic_workbench.render3d import (
     PyVistaUnavailableError,
     Render3DOptions,
+    normalize_rotation_axis,
     render_surface_gif,
     render_surface_mp4,
 )
@@ -211,6 +212,24 @@ def plot_directional_surface(
     return fig
 
 
+def _validate_rotation_export_parameters(
+    *, frames: int, fps: int, dpi: int, axis: str, backend: str
+) -> tuple[str, str]:
+    if frames < 2:
+        raise ValueError("frames must be at least 2.")
+    if fps <= 0:
+        raise ValueError("fps must be greater than zero.")
+    if dpi <= 0:
+        raise ValueError("dpi must be greater than zero.")
+    axis_key = normalize_rotation_axis(axis)
+    if not isinstance(backend, str):
+        raise ValueError("backend must be one of 'auto', 'pyvista', or 'matplotlib'.")
+    backend_key = backend.lower().strip()
+    if backend_key not in {"auto", "pyvista", "matplotlib"}:
+        raise ValueError("backend must be one of 'auto', 'pyvista', or 'matplotlib'.")
+    return axis_key, backend_key
+
+
 def export_rotating_gif(
     surface: DirectionalSurface,
     output_path: str | Path,
@@ -238,11 +257,17 @@ def export_rotating_gif(
     specular: float = 0.32,
     specular_power: float = 28.0,
 ) -> Path:
-    if frames < 2:
-        raise ValueError("frames must be at least 2.")
+    axis_key, backend_key = _validate_rotation_export_parameters(
+        frames=frames, fps=fps, dpi=dpi, axis=axis, backend=backend
+    )
+    if transparent_background and backend_key == "pyvista":
+        raise ValueError(
+            "PyVista GIF export does not support transparent backgrounds; "
+            "use backend='auto' or 'matplotlib'."
+        )
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    if backend in {"auto", "pyvista"}:
+    if backend_key in {"auto", "pyvista"} and not transparent_background:
         try:
             return render_surface_gif(
                 surface,
@@ -250,7 +275,7 @@ def export_rotating_gif(
                 frames=frames,
                 fps=fps,
                 elevation=elev,
-                axis=axis,
+                axis=axis_key,
                 options=Render3DOptions(
                     theme_name=theme_name,
                     palette_name=palette_name,
@@ -272,10 +297,10 @@ def export_rotating_gif(
                 ),
             )
         except PyVistaUnavailableError:
-            if backend == "pyvista":
+            if backend_key == "pyvista":
                 raise
         except Exception:
-            if backend == "pyvista":
+            if backend_key == "pyvista":
                 raise
 
     fig = plot_directional_surface(surface, cmap=cmap, theme_name=theme_name, palette_name=palette_name, elev=elev, azim=0.0)
@@ -283,7 +308,7 @@ def export_rotating_gif(
 
     def update(frame_index: int):
         azim = 360.0 * frame_index / frames
-        key = axis.lower()
+        key = axis_key
         if key == "x":
             ax.view_init(elev=azim, azim=0.0)
         elif key == "y":
@@ -293,7 +318,10 @@ def export_rotating_gif(
         return (ax,)
 
     animation = FuncAnimation(fig, update, frames=frames, interval=1000 / fps, blit=False)
-    animation.save(output, writer=PillowWriter(fps=fps), dpi=dpi)
+    save_kwargs = {"writer": PillowWriter(fps=fps), "dpi": dpi}
+    if transparent_background:
+        save_kwargs["savefig_kwargs"] = {"transparent": True}
+    animation.save(output, **save_kwargs)
     plt.close(fig)
     return output
 
@@ -322,13 +350,17 @@ def export_rotating_mp4(
     diffuse: float = 0.74,
     specular: float = 0.32,
     specular_power: float = 28.0,
+    transparent_background: bool = False,
     backend: str = "auto",
 ) -> Path:
+    axis_key, backend_key = _validate_rotation_export_parameters(
+        frames=frames, fps=fps, dpi=dpi, axis=axis, backend=backend
+    )
+    if transparent_background:
+        raise ValueError("MP4 export does not support transparent backgrounds; use GIF or PNG instead.")
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    if frames < 2:
-        raise ValueError("frames must be at least 2.")
-    if backend in {"auto", "pyvista"}:
+    if backend_key in {"auto", "pyvista"}:
         try:
             return render_surface_mp4(
                 surface,
@@ -336,7 +368,7 @@ def export_rotating_mp4(
                 frames=frames,
                 fps=fps,
                 elevation=elev,
-                axis=axis,
+                axis=axis_key,
                 options=Render3DOptions(
                     theme_name=theme_name,
                     palette_name=palette_name,
@@ -357,10 +389,10 @@ def export_rotating_mp4(
                 ),
             )
         except PyVistaUnavailableError:
-            if backend == "pyvista":
+            if backend_key == "pyvista":
                 raise
         except Exception:
-            if backend == "pyvista":
+            if backend_key == "pyvista":
                 raise
 
     fig = plot_directional_surface(surface, cmap=cmap, theme_name=theme_name, palette_name=palette_name, elev=elev, azim=0.0)
@@ -368,7 +400,7 @@ def export_rotating_mp4(
 
     def update(frame_index: int):
         azim = 360.0 * frame_index / frames
-        key = axis.lower()
+        key = axis_key
         if key == "x":
             ax.view_init(elev=azim, azim=0.0)
         elif key == "y":

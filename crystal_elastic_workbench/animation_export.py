@@ -75,6 +75,7 @@ def _mp4_manifest_parameters(surface: DirectionalSurface, options: AnimationExpo
         "theme": options.theme_name,
         "palette": options.palette_name,
         "axis": options.axis,
+        "transparent_background": options.transparent_background,
         **sampled_data_manifest_parameters(surface),
         **_render_style_parameters(options),
     }
@@ -128,6 +129,8 @@ def export_surface_mp4_animation(
     options: AnimationExportOptions | None = None,
 ) -> Path:
     opts = options or AnimationExportOptions()
+    if opts.transparent_background:
+        raise ValueError("MP4 export does not support transparent backgrounds; use GIF or PNG instead.")
     output = Path(output_path)
     export_rotating_mp4(
         surface,
@@ -137,6 +140,7 @@ def export_surface_mp4_animation(
         theme_name=opts.theme_name,
         palette_name=opts.palette_name,
         axis=opts.axis,
+        transparent_background=opts.transparent_background,
         lighting_intensity=opts.lighting_intensity,
         surface_smoothing=opts.surface_smoothing,
         surface_subdivision=opts.surface_subdivision,

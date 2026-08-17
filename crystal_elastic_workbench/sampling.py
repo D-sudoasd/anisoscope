@@ -207,6 +207,32 @@ def _coerce_path_point(point) -> tuple[str, np.ndarray]:
     return label, vector
 
 
+def _spherical_interpolate(start: np.ndarray, end: np.ndarray, fraction: float) -> np.ndarray:
+    """Interpolate two unit directions along a deterministic great-circle arc."""
+
+    dot = float(np.clip(np.dot(start, end), -1.0, 1.0))
+    angle = float(np.arccos(dot))
+    if angle <= 1e-12:
+        return start.copy()
+    if np.pi - angle <= 1e-12:
+        reference = np.array([1.0, 0.0, 0.0])
+        if abs(float(np.dot(start, reference))) > 0.9:
+            reference = np.array([0.0, 1.0, 0.0])
+        orthogonal = normalize_vector(np.cross(start, reference), name="path interpolation basis")
+        return normalize_vector(
+            np.cos(np.pi * fraction) * start + np.sin(np.pi * fraction) * orthogonal,
+            name="interpolated direction",
+        )
+
+    sine = float(np.sin(angle))
+    first_weight = np.sin((1.0 - fraction) * angle) / sine
+    second_weight = np.sin(fraction * angle) / sine
+    return normalize_vector(
+        first_weight * start + second_weight * end,
+        name="interpolated direction",
+    )
+
+
 def sample_direction_path(
     tensor: ElasticTensor,
     *,
@@ -238,8 +264,7 @@ def sample_direction_path(
         if segment_index > 0:
             fractions = fractions[1:]
         for fraction in fractions:
-            vector = (1.0 - fraction) * start + fraction * end
-            direction = normalize_vector(vector)
+            direction = _spherical_interpolate(start, end, float(fraction))
             sampled_directions.append(direction)
             distances.append(cumulative + segment_length * float(fraction))
         cumulative += segment_length
