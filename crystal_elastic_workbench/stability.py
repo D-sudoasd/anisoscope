@@ -223,7 +223,14 @@ def check_stability(
     )
     warnings.extend(relation_warnings)
     born_failures, born_warnings = _born_failures(c_symmetric, crystal_system)
-    failed_conditions = relation_failures + born_failures
+    matrix_failures: list[str] = []
+    if not is_symmetric:
+        matrix_failures.append("Cij is not symmetric")
+    if not is_invertible:
+        matrix_failures.append("matrix is not invertible")
+    if not is_positive_definite:
+        matrix_failures.append("matrix is not positive definite")
+    failed_conditions = matrix_failures + relation_failures + born_failures
     warnings.extend(born_warnings)
     matches_crystal_system = len(relation_failures) == 0 if relations_checked else None
     born_criteria_applied = _born_criteria_applied(crystal_system)

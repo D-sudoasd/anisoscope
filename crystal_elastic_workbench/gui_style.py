@@ -47,6 +47,31 @@ QLabel#statusBanner, QLabel#dashboardBanner {
     color: #174a7c;
     font-weight: 600;
 }
+QLabel#statusBanner[state="ok"], QLabel#dashboardBanner[state="ok"] {
+    border-color: #9cc7a3;
+    background: #eef8f0;
+    color: #1f6b3a;
+}
+QLabel#statusBanner[state="dirty"], QLabel#dashboardBanner[state="dirty"] {
+    border-color: #e0c07a;
+    background: #fff8e8;
+    color: #8a5a12;
+}
+QLabel#statusBanner[state="warning"], QLabel#dashboardBanner[state="warning"] {
+    border-color: #e0b07a;
+    background: #fff4e8;
+    color: #8a4b12;
+}
+QLabel#statusBanner[state="error"], QLabel#dashboardBanner[state="error"] {
+    border-color: #e0a0a0;
+    background: #fff0f0;
+    color: #8a1f1f;
+}
+QWidget#metricCard {
+    background: #f7fafc;
+    border: 1px solid #d8dde6;
+    border-radius: 8px;
+}
 QLabel#statusChip {
     border: 1px solid #d8dde6;
     border-radius: 5px;

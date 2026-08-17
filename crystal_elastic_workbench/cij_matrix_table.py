@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import QHeaderView, QMessageBox, QTableWidget, QTableWidgetItem
 
@@ -13,6 +13,8 @@ from crystal_elastic_workbench.gui_services import parse_numeric_block
 
 class CijMatrixTable(QTableWidget):
     """A compact 6 x 6 stiffness matrix table with Excel-like shortcuts."""
+
+    userEdited = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(6, 6, parent)
@@ -95,6 +97,7 @@ class CijMatrixTable(QTableWidget):
     def _sync_symmetric_item(self, item: QTableWidgetItem) -> None:
         if self._bulk_update:
             return
+        self.userEdited.emit()
         row = item.row()
         col = item.column()
         text = item.text().strip()
@@ -121,6 +124,7 @@ class CijMatrixTable(QTableWidget):
             raise ValueError("Pasted block does not fit inside the 6 x 6 Cij matrix.")
         if (start_row, start_col) == (0, 0) and block.shape == (6, 6):
             self.set_matrix(block)
+            self.userEdited.emit()
             return
         for row_offset in range(row_count):
             for col_offset in range(col_count):
@@ -130,6 +134,7 @@ class CijMatrixTable(QTableWidget):
                     float(block[row_offset, col_offset]),
                     sync_mirror=True,
                 )
+        self.userEdited.emit()
 
     def copy_selection_text(self) -> str:
         indexes = self.selectedIndexes()
@@ -154,6 +159,8 @@ class CijMatrixTable(QTableWidget):
             col = self.currentColumn()
             if row >= 0 and col >= 0:
                 indexes = [self.model().index(row, col)]
+        if indexes:
+            self.userEdited.emit()
         for index in indexes:
             self._set_cell_value(index.row(), index.column(), 0.0, sync_mirror=True)
 

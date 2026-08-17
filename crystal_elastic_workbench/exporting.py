@@ -105,6 +105,8 @@ def sampled_data_manifest_parameters(
                 "sample_count": int(len(data.values)),
                 "path_labels": list(data.path_labels or data.tick_labels),
                 "path_points": None if data.path_points is None else data.path_points.tolist(),
+                "path_interpolation": "slerp",
+                "path_distance_unit": "radian",
             }
         )
     elif isinstance(data, PlaneSlice):
@@ -160,9 +162,12 @@ def export_elastic_model_table(tensor: ElasticTensor, output_path: str | Path) -
     """Export the current Voigt/Reuss/Hill/Geometric comparison table."""
 
     output = Path(output_path)
+    suffix = output.suffix.lower()
+    if suffix == ".xls":
+        raise ValueError("Excel export supports .xlsx only; use a .xlsx output path.")
     output.parent.mkdir(parents=True, exist_ok=True)
     frame = elastic_model_table_frame(elastic_model_results(tensor))
-    if output.suffix.lower() in {".xlsx", ".xls"}:
+    if suffix == ".xlsx":
         frame.to_excel(output, index=False)
     else:
         frame.to_csv(output, index=False)

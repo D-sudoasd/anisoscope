@@ -30,10 +30,15 @@ Choose one of three routes:
 - paste a rectangular numeric block from a spreadsheet; or
 - enter or edit matrix cells manually.
 
-Selecting a crystal-system template exposes the independent constants expected
-by that template. The full matrix remains the numerical input to the analysis.
+The crystal-system control labels the relation and Born checks used by the
+stability report. It does not rewrite the matrix into independent constants.
+The full 6 × 6 table remains the numerical input to the analysis.
 Editing a single off-diagonal cell mirrors it to preserve symmetry; importing a
 complete matrix preserves asymmetry so that it can be diagnosed.
+After any matrix or crystal-system change, run **Analyze + Update Figures**
+again; cached scalars and figures are cleared so stale Hill values cannot be
+exported as if they belonged to the new input. Renaming the material does not
+clear the current analysis.
 
 The bundled Al, Si, and MgO values have no literature provenance in the current
 repository. Treat them only as interface demonstrations and regression inputs.
@@ -86,9 +91,13 @@ diagnostics, sampled planes and surfaces, and `manifest.json`.
 
 Use the relevant tab's export control for one figure or sampled data set. A
 sidecar manifest records the tensor, unit, crystal system, program version,
-sampling grid, plotting style, and output filename. For shear and Poisson-ratio
-sampling, it also records the transverse aggregation and sample count. Keep
-each sidecar with its corresponding output.
+sampling grid, plotting style, and output filename. Direction-path sidecars
+also record spherical interpolation and that the `distance` column is in
+radians. For shear and Poisson-ratio sampling, the sidecar records the
+transverse aggregation and sample count. Keep each sidecar with its
+corresponding output. A transparent background is applied to static figures
+and to GIF export through Matplotlib; MP4 export does not support
+transparency.
 
 ## 7. Reproducible minimal check
 
@@ -116,6 +125,10 @@ small result package.
   `0` to restore the default PyVista preference. This changes only the 3D
   rendering backend, not tensor analysis, stability checks, or sampling.
 - **MP4 export fails:** install `ffmpeg` and confirm it is on `PATH`, or export a
-  GIF instead.
+  GIF instead. Transparent backgrounds are rejected for MP4; uncheck
+  **Transparent** or export a GIF/PNG.
+- **GIF transparency looks opaque in PyVista-only mode:** transparent GIF
+  export uses the Matplotlib writer. Leave the 3D backend on `auto`, or set
+  `ANISOSCOPE_DISABLE_PYVISTA=1`.
 - **Numbers differ from another package:** first compare Voigt order, shear
   convention, transverse aggregation, units, and sampling grid.

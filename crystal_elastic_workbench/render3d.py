@@ -50,6 +50,17 @@ class PyVistaStatus:
     message: str
 
 
+def normalize_rotation_axis(axis: str) -> str:
+    """Return a supported rotation axis or raise a clear input error."""
+
+    if not isinstance(axis, str):
+        raise ValueError("axis must be one of 'x', 'y', or 'z'.")
+    key = axis.lower().strip()
+    if key not in {"x", "y", "z"}:
+        raise ValueError("axis must be one of 'x', 'y', or 'z'.")
+    return key
+
+
 @dataclass(frozen=True)
 class Render3DOptions:
     theme_name: str = DEFAULT_THEME_NAME
@@ -214,7 +225,7 @@ def _camera_for(surface: DirectionalSurface, *, azimuth_deg: float, elevation_de
     elevation = math.radians(elevation_deg)
     horizontal = radius * math.cos(elevation)
     vertical = radius * math.sin(elevation)
-    key = axis.lower()
+    key = normalize_rotation_axis(axis)
     if key == "x":
         position = center + np.array([vertical, horizontal * math.cos(azimuth), horizontal * math.sin(azimuth)])
         view_up = (0.0, 0.0, 1.0)
@@ -423,6 +434,9 @@ def render_surface_gif(
 ) -> Path:
     if frames < 2:
         raise ValueError("frames must be at least 2.")
+    if fps <= 0:
+        raise ValueError("fps must be greater than zero.")
+    axis = normalize_rotation_axis(axis)
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     opts = options or Render3DOptions()
@@ -452,9 +466,14 @@ def render_surface_mp4(
 ) -> Path:
     if frames < 2:
         raise ValueError("frames must be at least 2.")
+    if fps <= 0:
+        raise ValueError("fps must be greater than zero.")
+    axis = normalize_rotation_axis(axis)
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     opts = options or Render3DOptions()
+    if opts.transparent_background:
+        raise ValueError("MP4 export does not support transparent backgrounds; use GIF or PNG instead.")
     if opts.compose_annotations:
         opts = Render3DOptions(**{**opts.__dict__, "compose_annotations": False})
     plotter = _build_plotter(surface, opts, azimuth=0.0, elevation=elevation)

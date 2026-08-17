@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from crystal_elastic_workbench.animation_export import (
     AnimationExportOptions,
     export_surface_gif_animation,
@@ -76,6 +78,7 @@ def test_gif_animation_export_writes_manifest_and_forwards_scientific_style_opti
     assert manifest["parameters"]["surface_subdivision"] == 2
     assert manifest["parameters"]["show_edges"] is True
     assert manifest["parameters"]["specular"] == 0.4
+    assert manifest["parameters"]["transparent_background"] is True
 
 
 def test_mp4_animation_export_writes_manifest_without_requiring_ffmpeg(tmp_path, monkeypatch):
@@ -118,3 +121,20 @@ def test_mp4_animation_export_writes_manifest_without_requiring_ffmpeg(tmp_path,
     assert manifest["parameters"]["colorbar_tick_size"] == 10
     assert manifest["parameters"]["surface_subdivision"] == 1
     assert manifest["parameters"]["specular"] == 0.32
+    assert manifest["parameters"]["transparent_background"] is False
+
+
+def test_mp4_transparent_background_is_rejected_before_writing(tmp_path):
+    tensor, surface = _si_tensor_and_surface()
+    output = tmp_path / "transparent.mp4"
+
+    with pytest.raises(ValueError, match="MP4.*transparent"):
+        export_surface_mp4_animation(
+            tensor,
+            surface,
+            output,
+            options=AnimationExportOptions(transparent_background=True),
+        )
+
+    assert not output.exists()
+    assert not output.with_name(f"{output.name}.manifest.json").exists()

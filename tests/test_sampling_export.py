@@ -82,6 +82,34 @@ def test_direction_path_sampling_supports_high_symmetry_style_paths():
     assert len(frame) == path.values.size
 
 
+def test_direction_path_uses_spherical_interpolation_and_handles_antipodal_points():
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+
+    path = sample_direction_path(
+        tensor,
+        property_name="young",
+        points=[("[100]", [1, 0, 0]), ("[110]", [1, 1, 0])],
+        points_per_segment=5,
+    )
+    actual_angles = np.arccos(np.clip(path.directions @ path.directions[0], -1.0, 1.0))
+
+    assert np.allclose(path.distance, actual_angles, atol=1e-12)
+    assert path.directions[2] == pytest.approx(
+        [np.cos(np.pi / 8.0), np.sin(np.pi / 8.0), 0.0], abs=1e-12
+    )
+
+    antipodal = sample_direction_path(
+        tensor,
+        property_name="young",
+        points=[("[100]", [1, 0, 0]), ("[-100]", [-1, 0, 0])],
+        points_per_segment=5,
+    )
+
+    assert np.allclose(np.linalg.norm(antipodal.directions, axis=1), 1.0)
+    assert antipodal.distance[-1] == pytest.approx(np.pi)
+    assert antipodal.directions[-1] == pytest.approx([-1.0, 0.0, 0.0], abs=1e-12)
+
+
 def test_export_analysis_package_writes_traceable_manifest_and_data(tmp_path):
     tensor = ElasticTensor(
         isotropic_cubic_matrix(),
@@ -166,6 +194,8 @@ def test_custom_path_and_plane_manifests_preserve_exact_sampling_inputs(tmp_path
     )
 
     assert path_manifest["parameters"]["path_labels"] == ["start", "end"]
+    assert path_manifest["parameters"]["path_interpolation"] == "slerp"
+    assert path_manifest["parameters"]["path_distance_unit"] == "radian"
     assert np.allclose(
         path_manifest["parameters"]["path_points"],
         np.array([[1.0, 2.0, 3.0], [-2.0, 1.0, 4.0]])
@@ -230,6 +260,15 @@ def test_export_elastic_model_table_writes_sidecar_manifest(tmp_path):
     assert manifest["export_type"] == "elastic_model_table"
     assert manifest["parameters"]["recommended_model"] == "Hill"
     assert manifest["parameters"]["included_models"] == ["Voigt", "Reuss", "Hill", "Geometric"]
+
+
+def test_export_elastic_model_table_rejects_mislabeled_xls_output(tmp_path):
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+
+    with pytest.raises(ValueError, match="supports .xlsx only"):
+        export_elastic_model_table(tensor, tmp_path / "elastic_model_summary.xls")
+
+    assert not (tmp_path / "elastic_model_summary.xls").exists()
 
 
 def test_single_export_manifest_records_input_and_output_file(tmp_path):

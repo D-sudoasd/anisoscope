@@ -148,6 +148,24 @@ def test_rhombohedral_alias_applies_trigonal_born_criteria_and_fails_closed():
     assert any("(C11 - C12)*C44 > 2*C14^2" in item for item in result.failed_conditions)
 
 
+def test_stability_names_matrix_level_failures_in_failed_conditions():
+    unsymmetric = isotropic_cubic_matrix(160.0, 80.0)
+    unsymmetric[0, 1] = 10.0
+    unsymmetric[1, 0] = 0.0
+    unsymmetric_result = check_stability(unsymmetric, crystal_system="triclinic")
+
+    assert unsymmetric_result.is_symmetric is False
+    assert unsymmetric_result.overall_stable is False
+    assert "Cij is not symmetric" in unsymmetric_result.failed_conditions
+
+    non_pd = np.diag([1.0, 1.0, 1.0, -1.0, -1.0, -0.5])
+    non_pd_result = check_stability(non_pd, crystal_system="triclinic")
+
+    assert non_pd_result.is_positive_definite is False
+    assert non_pd_result.overall_stable is False
+    assert "matrix is not positive definite" in non_pd_result.failed_conditions
+
+
 def test_rejects_invalid_direction_and_non_orthogonal_transverse_direction():
     tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
 

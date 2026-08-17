@@ -141,10 +141,215 @@ def test_analyze_workflow_updates_dashboard_and_default_figures(qtbot=None):
     assert window.metric_labels["G_H"].text() != "-"
     assert window.metric_labels["E_H"].text() != "-"
     assert window.metric_labels["A_U"].text() != "-"
+    assert window.export_full_package_button.isEnabled() is True
+    assert window.export_paper_figures_button.isEnabled() is True
+    assert window.save_summary_button.isEnabled() is True
+    assert window.line_save_button.isEnabled() is True
+    assert window.mp4_button.isEnabled() is True
     if pyvista_status().available:
         assert window.surface_pane.preview_mode == "image"
     else:
         assert window.surface_pane.preview_mode == "figure"
+
+    window.close()
+    app.processEvents()
+
+
+def test_startup_banners_agree_and_exports_start_disabled(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+
+    assert window.workflow_status_label.text() == "Ready for analysis"
+    assert window.dashboard_stability_banner.text() == "No analysis yet"
+    assert window.export_full_package_button.isEnabled() is False
+    assert window.export_paper_figures_button.isEnabled() is False
+    assert window.save_summary_button.isEnabled() is False
+    assert window.line_save_button.isEnabled() is False
+    assert window.mp4_button.isEnabled() is False
+
+    window.close()
+    app.processEvents()
+
+
+def test_material_rename_keeps_cached_analysis(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.analyze_current_matrix()
+    summary = window.current_summary
+    tensor = window.current_tensor
+
+    window.material_edit.setText("Renamed silicon")
+
+    assert window.current_summary is summary
+    assert window.current_tensor is tensor
+    assert window.current_tensor.material_name == "Renamed silicon"
+    assert "Renamed silicon" in window.material_status_chip.text()
+    assert window.export_full_package_button.isEnabled() is True
+
+    window.close()
+    app.processEvents()
+
+
+def test_theta_change_invalidates_surface_but_keeps_tensor(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.analyze_current_matrix()
+
+    assert window.current_surface is not None
+    window.theta_spin.setValue(max(7, window.theta_spin.value() - 2))
+
+    assert window.current_tensor is not None
+    assert window.current_surface is None
+    assert window.surface_save_button.isEnabled() is False
+    assert window.export_paper_figures_button.isEnabled() is True
+    assert "incomplete" in window.figure_status_label.text().lower()
+
+    window.close()
+    app.processEvents()
+
+
+def test_transparent_background_disables_mp4_export(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.analyze_current_matrix()
+
+    assert window.mp4_button.isEnabled() is True
+    window.transparent_background_checkbox.setChecked(True)
+    assert window.mp4_button.isEnabled() is False
+
+    window.close()
+    app.processEvents()
+
+
+def test_input_changes_invalidate_cached_analysis(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.analyze_current_matrix()
+
+    assert window.current_tensor is not None
+    assert window.current_summary is not None
+    assert window.current_line_data is not None
+
+    window.load_example_by_name("MgO cubic")
+
+    assert window.current_tensor is None
+    assert window.current_summary is None
+    assert window.current_stability is None
+    assert window.current_line_data is None
+    assert window.current_polar_data is None
+    assert window.current_surface is None
+    assert "analyze" in window.workflow_status_label.text().lower()
+    assert window.export_full_package_button.isEnabled() is False
+    assert window.save_summary_button.isEnabled() is False
+
+    window.close()
+    app.processEvents()
+
+
+def test_manual_matrix_edit_invalidates_cached_analysis(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.analyze_current_matrix()
+
+    window.cij_table.item(0, 0).setText("999")
+
+    assert window.current_tensor is None
+    assert window.current_summary is None
+    assert window.current_line_data is None
+
+    window.close()
+    app.processEvents()
+
+
+def test_unstable_matrix_keeps_stability_diagnostics_when_summary_fails(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.populate_matrix(np.diag([1.0, 1.0, 1.0, -1.0, -1.0, -0.5]))
+    seen = {}
+    window.show_error = lambda title, exc: seen.update(title=title, error=str(exc))
+
+    window.analyze_current_matrix()
+
+    assert window.current_stability is not None
+    assert window.current_stability.overall_stable is False
+    assert window.current_summary is None
+    assert "overall_stable" in window.stability_text.toPlainText()
+    assert seen["title"] == "Derived analysis failed"
+    assert "Reuss shear modulus" in seen["error"]
+
+    window.close()
+    app.processEvents()
+
+
+@pytest.mark.parametrize(
+    ("method_name", "reader_name", "error_title"),
+    [
+        ("import_csv", "read_csv", "CSV import failed"),
+        ("import_excel", "read_excel", "Excel import failed"),
+    ],
+)
+def test_tabular_import_read_errors_are_reported(
+    method_name, reader_name, error_title, monkeypatch, qtbot=None
+):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench import gui as gui_module
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    seen = {}
+    window.show_error = lambda title, exc: seen.update(title=title, error=str(exc))
+    monkeypatch.setattr(
+        gui_module.QFileDialog,
+        "getOpenFileName",
+        lambda *args, **kwargs: ("broken-input", "All files (*)"),
+    )
+    monkeypatch.setattr(
+        gui_module.pd,
+        reader_name,
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("cannot read")),
+    )
+
+    getattr(window, method_name)()
+
+    assert seen == {"title": error_title, "error": "cannot read"}
 
     window.close()
     app.processEvents()
