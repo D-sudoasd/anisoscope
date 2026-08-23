@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -151,6 +152,136 @@ def test_export_analysis_package_writes_traceable_manifest_and_data(tmp_path):
     assert notes["diagnostics"]["B_spread"] == pytest.approx(0.0)
 
 
+def test_export_analysis_package_failure_preserves_existing_package_and_unrelated_files(tmp_path):
+    package_dir = tmp_path / "package"
+    tensor = ElasticTensor(
+        isotropic_cubic_matrix(),
+        crystal_system="cubic",
+        unit="GPa",
+        material_name="atomic-export-test",
+    )
+    export_analysis_package(
+        tensor,
+        package_dir,
+        plane_angle_count=19,
+        sphere_theta_count=5,
+        sphere_phi_count=7,
+    )
+    unrelated = package_dir / "user-not-owned.txt"
+    unrelated.write_bytes(b"keep this file")
+    before = {
+        path.name: path.read_bytes()
+        for path in package_dir.iterdir()
+        if path.is_file()
+    }
+    failing_tensor = ElasticTensor(
+        isotropic_cubic_matrix(bulk_gpa=180.0, shear_gpa=90.0),
+        crystal_system="cubic",
+        unit="GPa",
+        material_name="failed-export-must-not-leak",
+    )
+
+    with pytest.raises(ValueError, match="angle_count must be at least 3"):
+        export_analysis_package(
+            failing_tensor,
+            package_dir,
+            plane_angle_count=2,
+            sphere_theta_count=5,
+            sphere_phi_count=7,
+        )
+
+    after = {
+        path.name: path.read_bytes()
+        for path in package_dir.iterdir()
+        if path.is_file()
+    }
+    assert after == before
+    assert unrelated.read_bytes() == b"keep this file"
+    assert not list(tmp_path.glob(".analysis-package-*"))
+
+
+def test_export_analysis_package_rolls_back_a_partial_commit(tmp_path, monkeypatch):
+    from crystal_elastic_workbench import exporting as exporting_module
+
+    package_dir = tmp_path / "package"
+    original = ElasticTensor(
+        isotropic_cubic_matrix(),
+        crystal_system="cubic",
+        unit="GPa",
+        material_name="original-package",
+    )
+    export_analysis_package(
+        original,
+        package_dir,
+        plane_angle_count=19,
+        sphere_theta_count=5,
+        sphere_phi_count=7,
+    )
+    unrelated = package_dir / "user-not-owned.txt"
+    unrelated.write_bytes(b"keep this file")
+    before = {path.name: path.read_bytes() for path in package_dir.iterdir() if path.is_file()}
+
+    real_replace = exporting_module.os.replace
+    failed_once = False
+
+    def fail_during_commit(source, destination):
+        nonlocal failed_once
+        source_path = Path(source)
+        if (
+            not failed_once
+            and source_path.name == "polycrystalline_summary.csv"
+            and source_path.parent.name.startswith(".analysis-package-")
+        ):
+            failed_once = True
+            raise OSError("injected commit failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(exporting_module.os, "replace", fail_during_commit)
+    replacement = ElasticTensor(
+        isotropic_cubic_matrix(bulk_gpa=180.0, shear_gpa=90.0),
+        crystal_system="cubic",
+        unit="GPa",
+        material_name="replacement-must-roll-back",
+    )
+
+    with pytest.raises(OSError, match="injected commit failure"):
+        export_analysis_package(
+            replacement,
+            package_dir,
+            plane_angle_count=19,
+            sphere_theta_count=5,
+            sphere_phi_count=7,
+        )
+
+    after = {path.name: path.read_bytes() for path in package_dir.iterdir() if path.is_file()}
+    assert failed_once is True
+    assert after == before
+    assert unrelated.read_bytes() == b"keep this file"
+    assert not list(tmp_path.glob(".analysis-package-*"))
+
+
+def test_export_analysis_package_accepts_numpy_integer_sampling_counts(tmp_path):
+    tensor = ElasticTensor(
+        isotropic_cubic_matrix(),
+        crystal_system="cubic",
+        unit="GPa",
+        material_name="numpy-counts",
+    )
+
+    manifest_path = export_analysis_package(
+        tensor,
+        tmp_path / "package",
+        plane_angle_count=np.int64(19),
+        sphere_theta_count=np.int64(5),
+        sphere_phi_count=np.int64(7),
+    )
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["sampling"]["plane_angle_count"] == 19
+    assert manifest["sampling"]["sphere_theta_count"] == 5
+    assert manifest["sampling"]["sphere_phi_count"] == 7
+
+
 def test_export_sampled_data_writes_csv_and_manifest(tmp_path):
     tensor = ElasticTensor(
         isotropic_cubic_matrix(),
@@ -218,6 +349,20 @@ def test_shear_manifest_records_transverse_sampling(tmp_path):
 
     assert manifest["parameters"]["transverse_mode"] == "mean"
     assert manifest["parameters"]["transverse_samples"] == 72
+
+
+def test_sampling_normalizes_transverse_mode_case():
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+
+    plane = sample_plane(
+        tensor,
+        property_name="shear",
+        plane="xy",
+        angle_count=9,
+        transverse_mode=" MAX ",
+    )
+
+    assert plane.transverse_mode == "max"
 
 
 @pytest.mark.parametrize(("alias", "canonical"), [("g", "shear"), ("nu", "poisson")])

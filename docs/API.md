@@ -26,7 +26,9 @@ ElasticTensor(
 `stiffness_matrix` must be a finite `6 × 6` array in Voigt order
 `[11, 22, 33, 23, 13, 12]`. Construction computes its inverse; a singular matrix
 raises `numpy.linalg.LinAlgError`. `symmetrize=False` preserves the supplied
-matrix so asymmetry remains detectable.
+matrix so asymmetry remains detectable. Construction owns a defensive copy;
+the exposed `stiffness_matrix` and `compliance_matrix` arrays are read-only so
+derived values cannot become inconsistent through in-place mutation.
 
 Important methods:
 
@@ -97,5 +99,15 @@ manifest = export_analysis_package(
 
 The function returns the path to `manifest.json`. It also writes matrix tables,
 scalar summaries, model diagnostics, stability information, and sampled data.
-Existing files with the same names in the output directory are overwritten, so
-use a dedicated output directory for each run.
+The package is built in a same-parent staging directory and publishes only its
+documented files after all calculations succeed. Existing package-owned files
+are replaced with rollback protection; unrelated files are left untouched.
+Use a dedicated output directory for clear run-to-run provenance.
+
+Three-dimensional figure and animation sidecars record the backend that
+actually produced the media. When the Matplotlib fallback is selected,
+`requested_render_style` preserves the caller's request while
+`ignored_render_options` names PyVista-only settings that were not applied;
+effective settings remain at the top level. Surface extrema shown by the GUI or
+figure annotations are extrema of the recorded `theta_count` by `phi_count`
+grid, not a continuous optimization result.

@@ -46,8 +46,12 @@ def test_surface_figure_export_falls_back_to_matplotlib_and_records_manifest(tmp
             dpi=120,
             theme_name="Nature White",
             palette_name="Viridis Refined",
-            transparent_background=True,
-            render3d_options=Render3DOptions(window_size=(320, 260)),
+            transparent_background=False,
+            render3d_options=Render3DOptions(
+                window_size=(320, 260),
+                theme_name="Gray Print",
+                transparent_background=True,
+            ),
         ),
     )
 
@@ -58,19 +62,25 @@ def test_surface_figure_export_falls_back_to_matplotlib_and_records_manifest(tmp
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["export_type"] == "3d_figure"
     assert manifest["parameters"]["backend"] == "matplotlib"
+    assert manifest["parameters"]["fallback_reason"] == "forced unavailable"
     assert manifest["parameters"]["dpi"] == 120
     assert manifest["parameters"]["transparent_background"] is True
+    assert manifest["parameters"]["theme"] == "Gray Print"
     assert manifest["parameters"]["palette"] == "Nature Surface"
     assert manifest["parameters"]["palette_category"] == "sequential"
     assert manifest["parameters"]["compose_annotations"] is True
     assert manifest["parameters"]["annotation_backend"] == "matplotlib"
-    assert manifest["parameters"]["title_font_size"] == 18
-    assert manifest["parameters"]["colorbar_tick_size"] == 10
-    assert manifest["parameters"]["surface_subdivision"] == 1
-    assert manifest["parameters"]["ambient"] == 0.28
-    assert manifest["parameters"]["diffuse"] == 0.74
-    assert manifest["parameters"]["specular"] == 0.32
-    assert manifest["parameters"]["specular_power"] == 28.0
+    assert "title_font_size" not in manifest["parameters"]
+    assert "surface_subdivision" not in manifest["parameters"]
+    assert "lighting_intensity" in manifest["parameters"]["ignored_render_options"]
+    requested = manifest["parameters"]["requested_render_style"]
+    assert requested["title_font_size"] == 18
+    assert requested["colorbar_tick_size"] == 10
+    assert requested["surface_subdivision"] == 1
+    assert requested["ambient"] == 0.28
+    assert requested["diffuse"] == 0.74
+    assert requested["specular"] == 0.32
+    assert requested["specular_power"] == 28.0
     assert manifest["parameters"]["property"] == "young"
     assert manifest["parameters"]["theta_count"] == 5
     assert manifest["parameters"]["phi_count"] == 9

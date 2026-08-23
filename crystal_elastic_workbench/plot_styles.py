@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
+import numpy as np
 from matplotlib import colors as mpl_colors
 
 
@@ -172,6 +173,21 @@ _PREFERRED_3D_PALETTE_ORDER = [
     "Graphite",
 ]
 
+_MATPLOTLIB_DIVERGING_COLORMAPS = {
+    "brbg",
+    "bwr",
+    "coolwarm",
+    "piyg",
+    "prgn",
+    "puor",
+    "rdbu",
+    "rdgy",
+    "rdylbu",
+    "rdylgn",
+    "seismic",
+    "spectral",
+}
+
 
 _THEMES: dict[str, PlotTheme] = {
     "Nature White": PlotTheme(name="Nature White"),
@@ -265,6 +281,44 @@ def palette_colormap(name: str, *, continuous: bool = True):
     if continuous:
         return mpl_colors.LinearSegmentedColormap.from_list(palette.name, palette.colors)
     return mpl_colors.ListedColormap(palette.colors, name=palette.name)
+
+
+def surface_color_limits(
+    values: Iterable[float],
+    palette_name: str,
+    *,
+    colormap_name: str | None = None,
+) -> tuple[float, float]:
+    """Return shared scalar limits for a 3D surface and its colorbar.
+
+    Diverging palettes use a zero-centered, symmetric range only when the
+    surface contains both negative and positive values. Other palettes and
+    one-sided surfaces retain the data-derived range.
+    """
+
+    source = values if isinstance(values, np.ndarray) else list(values)
+    array = np.asarray(source, dtype=float)
+    finite = array[np.isfinite(array)]
+    if finite.size == 0:
+        raise ValueError("Surface color limits require at least one finite value.")
+    vmin = float(np.min(finite))
+    vmax = float(np.max(finite))
+    if abs(vmax - vmin) < 1e-14:
+        return vmin - 1.0, vmax + 1.0
+    category = get_palette(palette_name).category
+    if colormap_name is not None:
+        normalized_name = colormap_name.casefold()
+        if normalized_name.endswith("_r"):
+            normalized_name = normalized_name[:-2]
+        category = (
+            "diverging"
+            if normalized_name in _MATPLOTLIB_DIVERGING_COLORMAPS
+            else "sequential"
+        )
+    if category == "diverging" and vmin < 0.0 < vmax:
+        bound = max(abs(vmin), abs(vmax))
+        return -bound, bound
+    return vmin, vmax
 
 
 def cycle_colors(name: str) -> Iterable[str]:

@@ -184,6 +184,24 @@ def test_roundtrip_compliance_inverts_stiffness_matrix():
     assert math.isfinite(tensor.condition_number)
 
 
+def test_tensor_owns_and_protects_stiffness_and_compliance_matrices():
+    matrix = isotropic_cubic_matrix(160.0, 80.0)
+    tensor = ElasticTensor(matrix, crystal_system="cubic")
+    expected_stiffness = tensor.stiffness_matrix.copy()
+    expected_compliance = tensor.compliance_matrix.copy()
+
+    matrix[0, 0] += 100.0
+
+    assert np.array_equal(tensor.stiffness_matrix, expected_stiffness)
+    assert np.array_equal(tensor.compliance_matrix, expected_compliance)
+    assert not np.shares_memory(matrix, tensor.stiffness_matrix)
+
+    with pytest.raises(ValueError, match="read-only"):
+        tensor.stiffness_matrix[0, 0] = 1.0
+    with pytest.raises(ValueError, match="read-only"):
+        tensor.compliance_matrix[0, 0] = 1.0
+
+
 def test_directional_property_rejects_unknown_transverse_mode():
     tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
 

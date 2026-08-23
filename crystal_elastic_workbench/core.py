@@ -104,7 +104,7 @@ class ElasticTensor:
         material_name: str = "Untitled",
         symmetrize: bool = False,
     ) -> None:
-        matrix = np.asarray(stiffness_matrix, dtype=float)
+        matrix = np.array(stiffness_matrix, dtype=float, copy=True)
         if matrix.shape != (6, 6):
             raise ValueError("stiffness_matrix must be a 6x6 matrix in Voigt notation.")
         if not np.all(np.isfinite(matrix)):
@@ -119,12 +119,27 @@ class ElasticTensor:
                 "perform unit conversion."
             )
 
-        self.stiffness_matrix = matrix
+        self._stiffness_matrix = matrix
+        self._stiffness_matrix.setflags(write=False)
         self.crystal_system = crystal_system.lower().strip()
         self.unit = "GPa"
         self.material_name = material_name
-        self.compliance_matrix = np.linalg.inv(matrix)
+        compliance_matrix = np.linalg.inv(matrix)
+        compliance_matrix.setflags(write=False)
+        self._compliance_matrix = compliance_matrix
         self.condition_number = float(np.linalg.cond(matrix))
+
+    @property
+    def stiffness_matrix(self) -> np.ndarray:
+        """Return a read-only view of the stored stiffness matrix."""
+
+        return self._stiffness_matrix.view()
+
+    @property
+    def compliance_matrix(self) -> np.ndarray:
+        """Return a read-only view of the compliance matrix derived at construction."""
+
+        return self._compliance_matrix.view()
 
     def strain_from_stress_tensor(self, stress_tensor: np.ndarray) -> np.ndarray:
         stress_voigt = stress_tensor_to_voigt(stress_tensor)

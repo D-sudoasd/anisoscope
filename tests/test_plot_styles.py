@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from crystal_elastic_workbench.plot_styles import (
@@ -8,6 +9,7 @@ from crystal_elastic_workbench.plot_styles import (
     list_3d_palette_names,
     get_theme,
     list_palette_names,
+    surface_color_limits,
 )
 
 
@@ -81,3 +83,16 @@ def test_unknown_theme_and_palette_raise_clear_errors():
 
     with pytest.raises(ValueError, match="Unknown palette"):
         get_palette("not-a-palette")
+
+
+def test_surface_color_limits_center_diverging_zero_only_when_needed():
+    assert surface_color_limits((-2.0, -0.5, 1.0), "Blue-White-Red") == pytest.approx((-2.0, 2.0))
+    assert surface_color_limits((-2.0, -0.5, 1.0), "Nature Surface") == pytest.approx((-2.0, 1.0))
+    assert surface_color_limits((1.0, 2.0, 3.0), "Blue-White-Red") == pytest.approx((1.0, 3.0))
+    assert surface_color_limits((-3.0, -1.0, 0.0), "Blue-White-Red") == pytest.approx((-3.0, 0.0))
+    assert surface_color_limits((value for value in (-2.0, 0.5)), "Blue-White-Red") == pytest.approx((-2.0, 2.0))
+
+
+def test_surface_color_limits_reject_values_without_finite_samples():
+    with pytest.raises(ValueError, match="finite"):
+        surface_color_limits((np.nan, np.inf), "Nature Surface")

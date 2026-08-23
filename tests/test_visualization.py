@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import matplotlib
 import numpy as np
 import pytest
@@ -5,13 +7,15 @@ import pytest
 matplotlib.use("Agg")
 
 from crystal_elastic_workbench.core import ElasticTensor
-from crystal_elastic_workbench.sampling import sample_plane, sample_sphere
+from crystal_elastic_workbench.sampling import DirectionalSurface, sample_plane, sample_sphere
 from crystal_elastic_workbench.visualization import (
     export_rotating_gif,
     export_rotating_mp4,
     plot_direction_path,
     plot_directional_surface,
+    plot_line_slice,
     plot_plane_slice,
+    property_label,
 )
 
 
@@ -29,6 +33,29 @@ def isotropic_cubic_matrix(bulk_gpa: float = 160.0, shear_gpa: float = 80.0) -> 
             [0.0, 0.0, 0.0, 0.0, 0.0, c44],
         ],
         dtype=float,
+    )
+
+
+def signed_surface() -> DirectionalSurface:
+    values = np.array([[-2.0, 1.0], [-1.0, 0.5]])
+    directions = np.zeros((2, 2, 3), dtype=float)
+    directions[..., 0] = 1.0
+    x = np.array([[0.0, 1.0], [0.0, 1.0]])
+    y = np.array([[0.0, 0.0], [1.0, 1.0]])
+    z = values.copy()
+    return DirectionalSurface(
+        property_name="poisson",
+        theta=np.zeros((2, 2)),
+        phi=np.zeros((2, 2)),
+        directions=directions,
+        values=values,
+        x=x,
+        y=y,
+        z=z,
+        min_value=-2.0,
+        max_value=1.0,
+        min_direction=np.array([1.0, 0.0, 0.0]),
+        max_direction=np.array([1.0, 0.0, 0.0]),
     )
 
 
@@ -72,6 +99,76 @@ def test_direction_path_uses_compact_publication_styling():
     assert [label.get_text() for label in ax.get_xticklabels()] == ["[100]", "[110]", "[111]"]
     assert fig.dpi == 150
     assert ax.lines[0].get_linewidth() <= 1.5
+
+
+def test_diverging_surface_colorbar_centers_zero():
+    fig = plot_directional_surface(signed_surface(), palette_name="Blue-White-Red")
+
+    assert fig.axes[-1].get_ylim() == pytest.approx((-2.0, 2.0))
+    assert {item.get_text() for item in fig.axes[0].get_legend().get_texts()} == {
+        "Sampled-grid min",
+        "Sampled-grid max",
+    }
+    assert any("Sampled-grid extrema" in text.get_text() for text in fig.texts)
+
+
+def test_explicit_colormap_controls_signed_surface_normalization():
+    diverging = plot_directional_surface(
+        signed_surface(),
+        palette_name="Nature Surface",
+        cmap="seismic",
+    )
+    sequential = plot_directional_surface(
+        signed_surface(),
+        palette_name="Blue-White-Red",
+        cmap="viridis",
+    )
+
+    assert diverging.axes[-1].get_ylim() == pytest.approx((-2.0, 2.0))
+    assert sequential.axes[-1].get_ylim() == pytest.approx((-2.0, 1.0))
+
+
+@pytest.mark.parametrize(
+    ("property_name", "transverse_mode", "expected"),
+    [
+        ("shear", "min", "transverse min [GPa]"),
+        ("poisson", "max", "transverse max"),
+    ],
+)
+def test_property_labels_follow_selected_transverse_aggregation(
+    property_name,
+    transverse_mode,
+    expected,
+):
+    assert expected in property_label(property_name, transverse_mode)
+
+
+def test_matplotlib_figures_use_data_transverse_aggregation_in_labels():
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    plane = sample_plane(
+        tensor,
+        property_name="shear",
+        plane="xy",
+        angle_count=9,
+        transverse_mode="min",
+    )
+    surface = replace(signed_surface(), transverse_mode="max")
+
+    assert "transverse min" in plot_line_slice(plane).axes[0].get_ylabel()
+    assert "transverse min" in plot_line_slice(plane).axes[0].get_title()
+    assert "transverse min" in plot_plane_slice(plane).axes[0].get_title()
+    surface_figure = plot_directional_surface(surface)
+    assert "transverse max" in surface_figure.axes[-1].get_ylabel()
+    assert "transverse max" in surface_figure.axes[0].get_title()
+
+
+def test_plane_slice_title_includes_property_units():
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    plane = sample_plane(tensor, property_name="young", plane="xy", angle_count=9)
+
+    ax = plot_plane_slice(plane).axes[0]
+
+    assert "[GPa]" in ax.get_title()
 
 
 def test_export_rotating_gif_writes_animation(tmp_path):

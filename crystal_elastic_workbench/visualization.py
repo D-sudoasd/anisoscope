@@ -20,6 +20,7 @@ from crystal_elastic_workbench.plot_styles import (
     get_theme,
     matplotlib_rc_params,
     palette_colormap,
+    surface_color_limits,
 )
 from crystal_elastic_workbench.render3d import (
     PyVistaUnavailableError,
@@ -28,14 +29,13 @@ from crystal_elastic_workbench.render3d import (
     render_surface_gif,
     render_surface_mp4,
 )
+from crystal_elastic_workbench.result_presentation import format_sampled_surface_extrema
 from crystal_elastic_workbench.sampling import DirectionPath, DirectionalSurface, PlaneSlice
 
 
 PROPERTY_LABELS = {
     "young": "Young's modulus E(n) [GPa]",
     "compressibility": "Linear compressibility beta(n) [1/GPa]",
-    "shear": "Shear modulus G(n,m), transverse mean [GPa]",
-    "poisson": "Poisson ratio nu(n,m), transverse mean",
 }
 
 PROPERTY_SHORT_LABELS = {
@@ -46,12 +46,19 @@ PROPERTY_SHORT_LABELS = {
 }
 
 
-def property_label(property_name: str) -> str:
+def property_label(property_name: str, transverse_mode: str = "mean") -> str:
+    if property_name == "shear":
+        return f"Shear modulus G(n,m), transverse {transverse_mode} [GPa]"
+    if property_name == "poisson":
+        return f"Poisson ratio nu(n,m), transverse {transverse_mode}"
     return PROPERTY_LABELS.get(property_name, property_name)
 
 
-def property_short_label(property_name: str) -> str:
-    return PROPERTY_SHORT_LABELS.get(property_name, property_name)
+def property_short_label(property_name: str, transverse_mode: str = "mean") -> str:
+    label = PROPERTY_SHORT_LABELS.get(property_name, property_name)
+    if property_name in {"shear", "poisson"}:
+        return f"{label}, transverse {transverse_mode}"
+    return label
 
 
 def plot_line_slice(
@@ -67,8 +74,13 @@ def plot_line_slice(
         fig, ax = plt.subplots(figsize=theme.figure_size_1d, constrained_layout=True, dpi=theme.figure_dpi)
     ax.plot(plane.angles_deg, plane.values, color=palette.colors[0], linewidth=theme.line_width)
     ax.set_xlabel("Angle in plane [deg]")
-    ax.set_ylabel(property_label(plane.property_name))
-    ax.set_title(title or f"{property_short_label(plane.property_name)} in {plane.plane_label.upper()} plane", pad=4)
+    ax.set_ylabel(property_label(plane.property_name, plane.transverse_mode))
+    ax.set_title(
+        title
+        or f"{property_short_label(plane.property_name, plane.transverse_mode)} "
+        f"in {plane.plane_label.upper()} plane",
+        pad=4,
+    )
     apply_axis_style(ax, theme)
     return fig
 
@@ -86,12 +98,17 @@ def plot_direction_path(
         fig, ax = plt.subplots(figsize=theme.figure_size_1d, constrained_layout=True, dpi=theme.figure_dpi)
     ax.plot(path.distance, path.values, color=palette.colors[0], linewidth=theme.line_width)
     ax.set_xlabel("Direction path")
-    ax.set_ylabel(property_label(path.property_name))
+    ax.set_ylabel(property_label(path.property_name, path.transverse_mode))
     ax.set_xticks(path.tick_positions)
     ax.set_xticklabels(path.tick_labels)
     for position in path.tick_positions:
         ax.axvline(position, color=theme.grid_color, linewidth=theme.grid_linewidth, alpha=0.26, zorder=0)
-    ax.set_title(title or f"{property_short_label(path.property_name)} high-symmetry path", pad=4)
+    ax.set_title(
+        title
+        or f"{property_short_label(path.property_name, path.transverse_mode)} "
+        "high-symmetry path",
+        pad=4,
+    )
     apply_axis_style(ax, theme)
     return fig
 
@@ -113,7 +130,11 @@ def plot_plane_slice(
     ax.fill(radians, plane.values, color=palette.colors[0], alpha=0.075)
     ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
     ax.set_rlabel_position(22.5)
-    ax.set_title(title or f"{property_short_label(plane.property_name)} in {plane.plane_label.upper()} plane", pad=5)
+    ax.set_title(
+        title
+        or f"{property_label(plane.property_name, plane.transverse_mode)} in {plane.plane_label.upper()} plane",
+        pad=5,
+    )
     apply_axis_style(ax, theme)
     return fig
 
@@ -149,12 +170,12 @@ def plot_directional_surface(
         fig = plt.figure(figsize=theme.figure_size_3d, constrained_layout=True, dpi=theme.figure_dpi)
         ax = fig.add_subplot(111, projection="3d")
     cmap_obj = plt.get_cmap(cmap) if cmap else palette_colormap(palette_name)
-    vmin = float(np.min(surface.values))
-    vmax = float(np.max(surface.values))
-    if abs(vmax - vmin) < 1e-14:
-        norm = colors.Normalize(vmin=vmin - 1.0, vmax=vmax + 1.0)
-    else:
-        norm = colors.Normalize(vmin=vmin, vmax=vmax)
+    vmin, vmax = surface_color_limits(
+        surface.values,
+        palette_name,
+        colormap_name=cmap,
+    )
+    norm = colors.Normalize(vmin=vmin, vmax=vmax)
     facecolors = cmap_obj(norm(surface.values))
     facecolors[..., -1] = alpha
     ax.plot_surface(
@@ -170,12 +191,22 @@ def plot_directional_surface(
         cstride=1,
     )
     ax.scatter(
-        [surface.min_value * surface.min_direction[0], surface.max_value * surface.max_direction[0]],
-        [surface.min_value * surface.min_direction[1], surface.max_value * surface.max_direction[1]],
-        [surface.min_value * surface.min_direction[2], surface.max_value * surface.max_direction[2]],
-        color=["#d33f49", "#2a9d8f"],
+        [surface.min_value * surface.min_direction[0]],
+        [surface.min_value * surface.min_direction[1]],
+        [surface.min_value * surface.min_direction[2]],
+        color="#d33f49",
         s=20,
         depthshade=False,
+        label="Sampled-grid min",
+    )
+    ax.scatter(
+        [surface.max_value * surface.max_direction[0]],
+        [surface.max_value * surface.max_direction[1]],
+        [surface.max_value * surface.max_direction[2]],
+        color="#2a9d8f",
+        s=20,
+        depthshade=False,
+        label="Sampled-grid max",
     )
     mappable = cm.ScalarMappable(norm=norm, cmap=cmap_obj)
     mappable.set_array(surface.values)
@@ -185,13 +216,28 @@ def plot_directional_surface(
         shrink=0.72,
         pad=0.075,
         fraction=theme.colorbar_fraction,
-        label=property_label(surface.property_name),
+        label=property_label(surface.property_name, surface.transverse_mode),
     )
     apply_colorbar_style(colorbar, theme)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
-    ax.set_title(title or f"{property_short_label(surface.property_name)} directional surface", pad=4)
+    ax.set_title(
+        title
+        or f"{property_short_label(surface.property_name, surface.transverse_mode)} "
+        "directional surface",
+        pad=4,
+    )
+    ax.legend(loc="upper left", frameon=False, fontsize=theme.tick_size)
+    fig.text(
+        0.5,
+        0.01,
+        format_sampled_surface_extrema(surface),
+        ha="center",
+        va="bottom",
+        fontsize=max(6.5, theme.tick_size - 1),
+        color=theme.text_color,
+    )
     _set_equal_3d_axes(ax, surface.x, surface.y, surface.z)
     ax.view_init(elev=elev, azim=azim)
     try:

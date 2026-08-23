@@ -11,9 +11,8 @@ from crystal_elastic_workbench.core import ElasticTensor
 from crystal_elastic_workbench.exporting import sampled_data_manifest_parameters, write_export_manifest
 from crystal_elastic_workbench.plot_styles import DEFAULT_3D_PALETTE_NAME
 from crystal_elastic_workbench.render3d import (
-    PyVistaUnavailableError,
     Render3DOptions,
-    render3d_style_parameters,
+    render3d_manifest_style_parameters,
     render_surface_png,
 )
 from crystal_elastic_workbench.sampling import DirectionalSurface
@@ -75,7 +74,11 @@ def _save_matplotlib_surface(
         palette_name=render_options.palette_name,
     )
     try:
-        fig.savefig(output, dpi=options.dpi, transparent=options.transparent_background)
+        fig.savefig(
+            output,
+            dpi=options.dpi,
+            transparent=render_options.transparent_background,
+        )
     finally:
         plt.close(fig)
 
@@ -100,8 +103,8 @@ def export_surface_figure(
         try:
             render_surface_png(surface, output, options=render_options)
             backend = "pyvista"
-        except PyVistaUnavailableError as exc:
-            fallback_message = str(exc)
+        except Exception as exc:
+            fallback_message = str(exc).strip() or exc.__class__.__name__
             _save_matplotlib_surface(surface, output, opts, render_options)
     else:
         _save_matplotlib_surface(surface, output, opts, render_options)
@@ -112,11 +115,15 @@ def export_surface_figure(
         export_type="3d_figure",
         parameters={
             "backend": backend,
+            **(
+                {"fallback_reason": fallback_message}
+                if fallback_message is not None
+                else {}
+            ),
             "dpi": opts.dpi,
-            "theme": opts.theme_name,
-            "palette": opts.palette_name,
-            "transparent_background": opts.transparent_background,
-            **render3d_style_parameters(render_options),
+            "theme": render_options.theme_name,
+            "transparent_background": render_options.transparent_background,
+            **render3d_manifest_style_parameters(render_options, backend=backend),
             **sampled_data_manifest_parameters(surface),
         },
     )

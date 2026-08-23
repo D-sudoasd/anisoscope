@@ -9,6 +9,10 @@ from PySide6.QtWidgets import QHeaderView, QMessageBox, QTableWidget, QTableWidg
 
 from crystal_elastic_workbench.core import VOIGT_LABELS
 from crystal_elastic_workbench.gui_services import parse_numeric_block
+from crystal_elastic_workbench.gui_style import configure_platform_fonts
+
+
+configure_platform_fonts()
 
 
 class CijMatrixTable(QTableWidget):
