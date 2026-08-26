@@ -33,6 +33,15 @@ def canonical_property_name(property_name: str) -> str:
         raise ValueError(f"Unsupported directional property: {property_name}") from error
 
 
+def canonical_transverse_mode(transverse_mode: str) -> str:
+    """Normalize the supported finite transverse-scan aggregations."""
+
+    mode = transverse_mode.lower().strip()
+    if mode not in {"min", "max", "mean"}:
+        raise ValueError("transverse_mode must be 'min', 'max', or 'mean'.")
+    return mode
+
+
 @dataclass(frozen=True)
 class PlaneSlice:
     property_name: str
@@ -118,6 +127,7 @@ def sample_plane(
     if angle_count < 3:
         raise ValueError("angle_count must be at least 3.")
     property_name = canonical_property_name(property_name)
+    transverse_mode = canonical_transverse_mode(transverse_mode)
     plane_label, u, v = plane_basis(plane)
     plane_normal = None if isinstance(plane, str) else normalize_vector(plane, name="plane normal")
     angles = np.linspace(0.0, 360.0, angle_count)
@@ -158,6 +168,7 @@ def sample_sphere(
     if phi_count < 4:
         raise ValueError("phi_count must be at least 4.")
     property_name = canonical_property_name(property_name)
+    transverse_mode = canonical_transverse_mode(transverse_mode)
 
     theta = np.linspace(0.0, np.pi, theta_count)
     phi = np.linspace(0.0, 2.0 * np.pi, phi_count)
@@ -246,6 +257,7 @@ def sample_direction_path(
     if points_per_segment < 2:
         raise ValueError("points_per_segment must be at least 2.")
     property_name = canonical_property_name(property_name)
+    transverse_mode = canonical_transverse_mode(transverse_mode)
     coerced = [_coerce_path_point(point) for point in points]
     if len(coerced) < 2:
         raise ValueError("At least two path points are required.")

@@ -40,6 +40,10 @@ again; cached scalars and figures are cleared so stale Hill values cannot be
 exported as if they belonged to the new input. Renaming the material does not
 clear the current analysis.
 
+On shorter laptop displays, scroll the left input column to reach the matrix;
+the action controls stay pinned below it and the results tabs remain visible at
+the selected window size.
+
 The bundled Al, Si, and MgO values have no literature provenance in the current
 repository. Treat them only as interface demonstrations and regression inputs.
 
@@ -82,6 +86,10 @@ be described as the global transverse minimum or maximum.
 Sampling density controls visual and numerical resolution. A denser grid is not
 automatically more scientifically valid; verify convergence for the intended
 quantity and report the chosen sampling counts.
+The 3D tab and rendered surface annotate the minimum and maximum found on the
+current sampled grid, their directions, and the grid dimensions. These are
+sampled-grid extrema, not a claim of continuous global extrema; refine
+`theta`/`phi` and check convergence before reporting them as material values.
 
 ## 6. Export results
 
@@ -97,7 +105,21 @@ radians. For shear and Poisson-ratio sampling, the sidecar records the
 transverse aggregation and sample count. Keep each sidecar with its
 corresponding output. A transparent background is applied to static figures
 and to GIF export through Matplotlib; MP4 export does not support
-transparency.
+transparency. Animation manifests record the actual backend, frame rate, and
+fallback reason when PyVista is unavailable. Changing a theme, palette,
+lighting, smoothing, edge, DPI, or transparency setting clears any affected
+stale preview; sampled data remain available, and **Plot** regenerates a figure
+before it can be saved.
+When a Matplotlib fallback is used, the sidecar separates the requested 3D
+render style from the options that the fallback actually applied. Unsupported
+PyVista-only settings are listed under `ignored_render_options` instead of being
+recorded as effective.
+
+Complete packages are calculated in a staging directory before their owned
+files are published. A failed calculation leaves an existing package intact,
+and unrelated files in the chosen directory are not replaced.
+Animations and paper-figure batches use the same publish-after-success rule for
+their media and sidecar sets.
 
 ## 7. Reproducible minimal check
 
@@ -132,3 +154,5 @@ small result package.
   `ANISOSCOPE_DISABLE_PYVISTA=1`.
 - **Numbers differ from another package:** first compare Voigt order, shear
   convention, transverse aggregation, units, and sampling grid.
+- **Controls do not fit a narrow window:** below the desktop-width breakpoint,
+  the input and results areas stack vertically and both sides remain scrollable.

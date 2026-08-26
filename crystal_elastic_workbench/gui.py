@@ -18,12 +18,14 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGridLayout,
     QGroupBox,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QSplitter,
     QStyle,
@@ -73,10 +75,15 @@ from crystal_elastic_workbench.plot_styles import (
     list_theme_names,
 )
 from crystal_elastic_workbench.render3d import (
-    PyVistaUnavailableError,
     Render3DOptions,
     pyvista_status,
     render_surface_image,
+)
+from crystal_elastic_workbench.result_presentation import (
+    format_sampled_surface_extrema,
+    format_stability_report,
+    summary_display_rows,
+    summary_labeled_values,
 )
 from crystal_elastic_workbench.sampling import (
     DirectionalSurface,
@@ -100,8 +107,8 @@ configure_platform_fonts()
 PROPERTY_CHOICES = {
     "Young's modulus E(n)": "young",
     "Linear compressibility beta(n)": "compressibility",
-    "Shear modulus G(n,m), mean": "shear",
-    "Poisson ratio nu(n,m), mean": "poisson",
+    "Shear G(n,m), transverse mean": "shear",
+    "Poisson nu(n,m), transverse mean": "poisson",
 }
 
 
@@ -152,20 +159,21 @@ class FigurePane(QWidget):
         self._placeholder.show()
 
     def _clear_current(self) -> None:
-        if self._canvas is not None:
-            if self._toolbar is not None:
-                self._layout.removeWidget(self._toolbar)
-                self._toolbar.setParent(None)
-                self._toolbar = None
-            self._layout.removeWidget(self._canvas)
-            self._canvas.setParent(None)
-            self._canvas = None
-            if self._figure is not None:
-                plt.close(self._figure)
-        if self._image_label is not None:
-            self._layout.removeWidget(self._image_label)
-            self._image_label.setParent(None)
-            self._image_label = None
+        # Keep preview widgets parented to this pane while scheduling their
+        # destruction.  Detaching them with ``setParent(None)`` creates
+        # hidden top-level windows that survive style changes and may remain
+        # alive until the application exits.
+        for widget in (self._toolbar, self._canvas, self._image_label):
+            if widget is None:
+                continue
+            self._layout.removeWidget(widget)
+            widget.hide()
+            widget.deleteLater()
+        if self._figure is not None:
+            plt.close(self._figure)
+        self._toolbar = None
+        self._canvas = None
+        self._image_label = None
         self._figure = None
         self._image_array = None
         self.preview_mode = "empty"
@@ -231,23 +239,65 @@ class MainWindow(QMainWindow):
         self.last_analysis_time: datetime | None = None
 
         input_panel = self._build_input_panel()
-        tabs = self._build_tabs()
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(input_panel)
-        splitter.addWidget(tabs)
-        splitter.setSizes([420, 960])
+        self.input_scroll = QScrollArea()
+        self.input_scroll.setAccessibleName("Input controls")
+        self.input_scroll.setWidgetResizable(True)
+        self.input_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.input_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.input_scroll.setWidget(input_panel)
+        self.input_column = QWidget()
+        self.input_column.setMinimumWidth(360)
+        input_column_layout = QVBoxLayout(self.input_column)
+        input_column_layout.setContentsMargins(0, 0, 0, 0)
+        input_column_layout.setSpacing(8)
+        input_column_layout.addWidget(self.input_scroll, stretch=1)
+        input_column_layout.addWidget(self._build_actions_group())
+        self.tabs = self._build_tabs()
+        self.tabs_scroll = QScrollArea()
+        self.tabs_scroll.setAccessibleName("Analysis results and figures")
+        self.tabs_scroll.setWidgetResizable(True)
+        self.tabs_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.tabs_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.tabs_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.tabs_scroll.setWidget(self.tabs)
+        self.main_splitter = QSplitter(Qt.Horizontal)
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.addWidget(self.input_column)
+        self.main_splitter.addWidget(self.tabs_scroll)
+        self.main_splitter.setStretchFactor(0, 0)
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setSizes([360, 1020])
 
         central = QWidget()
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(10, 10, 10, 10)
         central_layout.setSpacing(8)
         central_layout.addWidget(self._build_workflow_header())
-        central_layout.addWidget(splitter, stretch=1)
+        central_layout.addWidget(self.main_splitter, stretch=1)
         self.setCentralWidget(central)
+        self._apply_responsive_layout(self.width())
         self._apply_app_style()
         self._connect_input_change_signals()
         self.load_example_by_name("Si cubic")
         self._present_ready_state()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override name
+        super().resizeEvent(event)
+        if hasattr(self, "main_splitter"):
+            self._apply_responsive_layout(event.size().width())
+
+    def _apply_responsive_layout(self, width: int) -> None:
+        narrow = width < 1180
+        target_orientation = Qt.Vertical if narrow else Qt.Horizontal
+        if self.main_splitter.orientation() == target_orientation:
+            return
+        self.main_splitter.setOrientation(target_orientation)
+        if narrow:
+            self.input_column.setMinimumWidth(0)
+            self.main_splitter.setSizes([300, max(360, self.height() - 390)])
+        else:
+            self.input_column.setMinimumWidth(360)
+            self.main_splitter.setSizes([360, max(600, width - 380)])
 
     def _build_input_panel(self) -> QWidget:
         panel = QWidget()
@@ -279,7 +329,15 @@ class MainWindow(QMainWindow):
         matrix_group = QGroupBox("Cij Matrix")
         matrix_layout = QVBoxLayout(matrix_group)
         self.cij_table = CijMatrixTable()
+        self.cij_table.setAccessibleName("Cij stiffness matrix")
+        self.cij_table.setAccessibleDescription(
+            "Six by six stiffness matrix in Voigt order. Manual off-diagonal edits mirror the paired cell."
+        )
         matrix_layout.addWidget(QLabel("Voigt order: [11, 22, 33, 23, 13, 12]"))
+        matrix_note = QLabel("Manual edits mirror off-diagonal pairs; complete imports keep supplied asymmetry.")
+        matrix_note.setObjectName("mutedLabel")
+        matrix_note.setWordWrap(True)
+        matrix_layout.addWidget(matrix_note)
         matrix_layout.addWidget(self.cij_table, stretch=1)
         matrix_tools = QHBoxLayout()
         self.paste_matrix_button = self._action_button("Paste Matrix", QStyle.SP_DialogOpenButton)
@@ -292,7 +350,6 @@ class MainWindow(QMainWindow):
         matrix_layout.addLayout(matrix_tools)
         layout.addWidget(matrix_group, stretch=1)
 
-        layout.addWidget(self._build_actions_group())
         return panel
 
     def _build_workflow_header(self) -> QWidget:
@@ -301,6 +358,7 @@ class MainWindow(QMainWindow):
         self.workflow_status_label = QLabel("Ready")
         self.workflow_status_label.setObjectName("statusBanner")
         self.workflow_status_label.setWordWrap(True)
+        self.workflow_status_label.setAccessibleName("Workflow status")
         self.material_status_chip = QLabel("Material: Untitled")
         self.crystal_status_chip = QLabel("Crystal: -")
         self.unit_status_chip = QLabel("Unit: GPa")
@@ -453,10 +511,20 @@ class MainWindow(QMainWindow):
         self.stability_text = QTextEdit()
         self.stability_text.setReadOnly(True)
         self.stability_text.setMinimumHeight(150)
+        self.stability_text.setAccessibleName("Stability diagnostics")
         self.summary_table = QTableWidget(0, 2)
+        self.summary_table.setAccessibleName("Scalar elastic parameters")
         self.summary_table.setHorizontalHeaderLabels(["Parameter", "Value"])
+        self.summary_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.summary_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.model_table = QTableWidget(0, 8)
-        self.model_table.setHorizontalHeaderLabels(["Model", "Assumption", "B", "G", "E", "nu", "B/G", "Notes"])
+        self.model_table.setAccessibleName("Elastic model comparison")
+        self.model_table.setHorizontalHeaderLabels(
+            ["Model", "Assumption", "B [GPa]", "G [GPa]", "E [GPa]", "nu", "B/G", "Notes"]
+        )
+        for column in range(7):
+            self.model_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        self.model_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.Stretch)
         self.model_table.setAlternatingRowColors(True)
         self.export_model_table_button = self._action_button("Export Model Table", QStyle.SP_DialogSaveButton)
         self.export_model_table_button.clicked.connect(self.export_model_table)
@@ -472,6 +540,9 @@ class MainWindow(QMainWindow):
     def _property_combo(self) -> QComboBox:
         combo = QComboBox()
         combo.addItems(PROPERTY_CHOICES.keys())
+        combo.setToolTip(
+            "Shear and Poisson values use the mean over 72 sampled transverse directions."
+        )
         return combo
 
     def _build_1d_tab(self) -> QWidget:
@@ -495,15 +566,18 @@ class MainWindow(QMainWindow):
         selectors.addWidget(self.line_property_combo)
         selectors.addWidget(QLabel("Mode"))
         selectors.addWidget(self.line_mode_combo)
-        selectors.addWidget(QLabel("Plane"))
+        self.line_plane_label = QLabel("Plane")
+        selectors.addWidget(self.line_plane_label)
         selectors.addWidget(self.line_plane_combo)
-        selectors.addWidget(QLabel("Path"))
+        self.line_path_label = QLabel("Path")
+        selectors.addWidget(self.line_path_label)
         selectors.addWidget(self.path_edit, stretch=1)
         actions.addWidget(line_button)
         actions.addWidget(self.line_save_button)
         actions.addWidget(self.line_save_data_button)
         actions.addStretch()
         self.line_pane = FigurePane()
+        self._update_1d_control_visibility()
         layout.addLayout(selectors)
         layout.addLayout(actions)
         layout.addWidget(self.line_pane, stretch=1)
@@ -528,13 +602,15 @@ class MainWindow(QMainWindow):
         selectors.addWidget(self.polar_property_combo)
         selectors.addWidget(QLabel("Plane"))
         selectors.addWidget(self.polar_plane_combo)
-        selectors.addWidget(QLabel("Normal/Miller"))
+        self.polar_normal_label = QLabel("Normal/Miller")
+        selectors.addWidget(self.polar_normal_label)
         selectors.addWidget(self.normal_edit, stretch=1)
         actions.addWidget(polar_button)
         actions.addWidget(self.polar_save_button)
         actions.addWidget(self.polar_save_data_button)
         actions.addStretch()
         self.polar_pane = FigurePane()
+        self._update_polar_control_visibility()
         layout.addLayout(selectors)
         layout.addLayout(actions)
         layout.addWidget(self.polar_pane, stretch=1)
@@ -575,6 +651,10 @@ class MainWindow(QMainWindow):
         self.show_edges_checkbox = QCheckBox("Edges")
         self.render3d_status_label = QLabel()
         self._refresh_render3d_status_label()
+        self.surface_extrema_label = QLabel("Sampled-grid extrema: plot a surface to inspect the sampled range.")
+        self.surface_extrema_label.setObjectName("mutedLabel")
+        self.surface_extrema_label.setWordWrap(True)
+        self.surface_extrema_label.setAccessibleName("Sampled-grid surface extrema")
         surface_button = QPushButton("Plot")
         self.gif_button = QPushButton("Export GIF")
         self.mp4_button = QPushButton("Export MP4")
@@ -587,6 +667,7 @@ class MainWindow(QMainWindow):
         self.surface_save_button.clicked.connect(self.save_surface_figure)
         self.surface_save_data_button.clicked.connect(lambda: self.save_sampled_data("surface"))
         plot_row = QHBoxLayout()
+        plot_row.setSpacing(4)
         plot_row.addWidget(QLabel("Property"))
         plot_row.addWidget(self.surface_property_combo)
         plot_row.addWidget(QLabel("Palette"))
@@ -600,6 +681,7 @@ class MainWindow(QMainWindow):
         plot_row.addWidget(self.surface_save_data_button)
         plot_row.addStretch()
         animation_row = QHBoxLayout()
+        animation_row.setSpacing(4)
         animation_row.addWidget(QLabel("GIF frames"))
         animation_row.addWidget(self.gif_frames_spin)
         animation_row.addWidget(QLabel("dpi"))
@@ -618,6 +700,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(plot_row)
         layout.addLayout(animation_row)
         layout.addWidget(self.render3d_status_label)
+        layout.addWidget(self.surface_extrema_label)
         layout.addWidget(self.surface_pane, stretch=1)
         return tab
 
@@ -657,7 +740,10 @@ class MainWindow(QMainWindow):
             return
         self.workflow_status_label.setText(message)
         self._set_banner_state(self.workflow_status_label, self._status_state_for_message(message))
-        self.material_status_chip.setText(f"Material: {self.material_edit.text().strip() or 'Untitled'}")
+        material_name = self.material_edit.text().strip() or "Untitled"
+        material_display = material_name if len(material_name) <= 28 else f"{material_name[:25]}..."
+        self.material_status_chip.setText(f"Material: {material_display}")
+        self.material_status_chip.setToolTip(f"Material: {material_name}")
         self.crystal_status_chip.setText(f"Crystal: {self.system_combo.currentText()}")
         self.unit_status_chip.setText(f"Unit: {self.unit_edit.text().strip() or 'GPa'}")
         self.pyvista_status_chip.setText(self._pyvista_status_text())
@@ -685,8 +771,14 @@ class MainWindow(QMainWindow):
         self.phi_spin.valueChanged.connect(self._on_surface_sampling_changed)
         self.theme_combo.currentTextChanged.connect(self._on_style_changed)
         self.palette_combo.currentTextChanged.connect(self._on_style_changed)
+        self.cmap_combo.currentTextChanged.connect(self._on_surface_style_changed)
+        self.lighting_spin.valueChanged.connect(self._on_surface_style_changed)
+        self.surface_smoothing_spin.valueChanged.connect(self._on_surface_style_changed)
+        self.show_edges_checkbox.toggled.connect(self._on_surface_style_changed)
         self.export_dpi_spin.valueChanged.connect(self._on_style_changed)
         self.transparent_background_checkbox.toggled.connect(self._on_transparent_background_toggled)
+        self._update_1d_control_visibility()
+        self._update_polar_control_visibility()
         self._sync_action_enabled()
 
     def _on_material_name_changed(self, *_args) -> None:
@@ -703,6 +795,7 @@ class MainWindow(QMainWindow):
             self._set_banner_state(self.dashboard_stability_banner, "dirty")
 
     def _on_line_sampling_changed(self, *_args) -> None:
+        self._update_1d_control_visibility()
         if self.current_line_data is None and self.current_tensor is None:
             return
         self.current_line_data = None
@@ -712,6 +805,7 @@ class MainWindow(QMainWindow):
         self._sync_action_enabled()
 
     def _on_polar_sampling_changed(self, *_args) -> None:
+        self._update_polar_control_visibility()
         if self.current_polar_data is None and self.current_tensor is None:
             return
         self.current_polar_data = None
@@ -724,6 +818,8 @@ class MainWindow(QMainWindow):
         if self.current_surface is None and self.current_tensor is None:
             return
         self.current_surface = None
+        if hasattr(self, "surface_extrema_label"):
+            self.surface_extrema_label.setText("Sampled-grid extrema: plot a surface to inspect the sampled range.")
         if hasattr(self, "surface_pane"):
             self.surface_pane.clear()
         self._mark_figures_incomplete()
@@ -732,14 +828,83 @@ class MainWindow(QMainWindow):
     def _on_style_changed(self, *_args) -> None:
         if self.current_tensor is None:
             return
+        self._clear_plot_previews()
         self._mark_figures_incomplete()
+        self._sync_action_enabled()
+
+    def _on_surface_style_changed(self, *_args) -> None:
+        if self.current_tensor is None:
+            return
+        if hasattr(self, "surface_pane"):
+            self.surface_pane.clear()
+        self._mark_figures_incomplete()
+        self._sync_action_enabled()
 
     def _on_transparent_background_toggled(self, *_args) -> None:
         self._on_style_changed()
         self._sync_action_enabled()
 
+    def _update_1d_control_visibility(self) -> None:
+        if not hasattr(self, "line_mode_combo"):
+            return
+        mode = self.line_mode_combo.currentText()
+        angle_mode = mode == "Angle in plane"
+        custom_path_mode = mode == "Custom path"
+        self.line_plane_label.setVisible(angle_mode)
+        self.line_plane_combo.setVisible(angle_mode)
+        self.line_path_label.setVisible(custom_path_mode)
+        self.path_edit.setVisible(custom_path_mode)
+
+    def _update_polar_control_visibility(self) -> None:
+        if not hasattr(self, "polar_plane_combo"):
+            return
+        custom_normal = self.polar_plane_combo.currentText() == "custom normal"
+        self.polar_normal_label.setVisible(custom_normal)
+        self.normal_edit.setVisible(custom_normal)
+
+    def _clear_plot_previews(self) -> None:
+        for pane_name in ("line_pane", "polar_pane", "surface_pane"):
+            pane = getattr(self, pane_name, None)
+            if pane is not None:
+                pane.clear()
+
+    def _figure_preview_flags(self) -> dict[str, bool]:
+        return {
+            "1D": self.current_line_data is not None
+            and getattr(self.line_pane, "preview_mode", "empty") != "empty",
+            "2D": self.current_polar_data is not None
+            and getattr(self.polar_pane, "preview_mode", "empty") != "empty",
+            "3D": self.current_surface is not None
+            and getattr(self.surface_pane, "preview_mode", "empty") != "empty",
+        }
+
+    def _refresh_figure_status(self) -> bool:
+        """Recompute figure readiness after an individual plot is rendered."""
+
+        flags = self._figure_preview_flags()
+        figures_ready = all(flags.values())
+        if self.current_summary is not None and self.current_stability is not None:
+            self._update_dashboard_after_analysis()
+            if figures_ready:
+                message = (
+                    "Checks passed: analysis complete"
+                    if self.current_stability.overall_stable
+                    else "Warning: check diagnostics"
+                )
+            else:
+                missing = ", ".join(name for name, ready in flags.items() if not ready)
+                message = f"Warning: figures incomplete; render {missing} plot"
+            self._update_workflow_status(message)
+        elif hasattr(self, "figure_status_label"):
+            self.figure_status_label.setText(
+                "Figures: 1D/2D/3D updated" if figures_ready else "Figures: incomplete; check plot tabs"
+            )
+        return figures_ready
+
     def _mark_figures_incomplete(self) -> None:
-        if hasattr(self, "figure_status_label"):
+        if self.current_summary is not None and self.current_stability is not None:
+            self._refresh_figure_status()
+        elif hasattr(self, "figure_status_label"):
             self.figure_status_label.setText("Figures: incomplete; check plot tabs")
 
     def _present_ready_state(self) -> None:
@@ -756,9 +921,18 @@ class MainWindow(QMainWindow):
     def _sync_action_enabled(self) -> None:
         has_tensor = self.current_tensor is not None
         has_summary = self.current_summary is not None
+        has_completed_analysis = (
+            has_tensor
+            and has_summary
+            and self.current_model_results is not None
+            and self.current_stability is not None
+        )
         has_line = self.current_line_data is not None
         has_polar = self.current_polar_data is not None
         has_surface = self.current_surface is not None
+        has_line_preview = has_line and getattr(self.line_pane, "preview_mode", "empty") != "empty"
+        has_polar_preview = has_polar and getattr(self.polar_pane, "preview_mode", "empty") != "empty"
+        has_surface_preview = has_surface and getattr(self.surface_pane, "preview_mode", "empty") != "empty"
         transparent = bool(
             getattr(self, "transparent_background_checkbox", None)
             and self.transparent_background_checkbox.isChecked()
@@ -766,14 +940,14 @@ class MainWindow(QMainWindow):
         for name, enabled in (
             ("save_summary_button", has_summary),
             ("copy_summary_button", has_summary),
-            ("export_model_table_button", has_tensor),
-            ("export_paper_figures_button", has_tensor),
-            ("export_full_package_button", has_tensor),
-            ("line_save_button", has_line),
+            ("export_model_table_button", has_completed_analysis),
+            ("export_paper_figures_button", has_completed_analysis),
+            ("export_full_package_button", has_completed_analysis),
+            ("line_save_button", has_line_preview),
             ("line_save_data_button", has_line),
-            ("polar_save_button", has_polar),
+            ("polar_save_button", has_polar_preview),
             ("polar_save_data_button", has_polar),
-            ("surface_save_button", has_surface),
+            ("surface_save_button", has_surface_preview),
             ("surface_save_data_button", has_surface),
             ("gif_button", has_surface),
             ("mp4_button", has_surface and not transparent),
@@ -791,6 +965,8 @@ class MainWindow(QMainWindow):
         self.current_polar_data = None
         self.current_surface = None
         self.last_analysis_time = None
+        if hasattr(self, "surface_extrema_label"):
+            self.surface_extrema_label.setText("Sampled-grid extrema: plot a surface to inspect the sampled range.")
 
         for pane_name in ("line_pane", "polar_pane", "surface_pane"):
             pane = getattr(self, pane_name, None)
@@ -893,30 +1069,36 @@ class MainWindow(QMainWindow):
         self.current_model_results = model_results
         self.fill_summary(summary.as_dict())
         self.fill_model_table(model_results)
-        self.update_line_plot()
-        self.update_polar_plot()
-        self.update_surface_plot()
+        plot_results = {
+            "1D": self.update_line_plot(),
+            "2D": self.update_polar_plot(),
+            "3D": self.update_surface_plot(),
+        }
+        failed_plots = [name for name, succeeded in plot_results.items() if not succeeded]
+        figures_ok = not failed_plots
         self.last_analysis_time = datetime.now()
         self._update_dashboard_after_analysis()
-        self._update_workflow_status("Checks passed: analysis complete" if stability.overall_stable else "Warning: check diagnostics")
+        if figures_ok:
+            self._update_workflow_status(
+                "Checks passed: analysis complete" if stability.overall_stable else "Warning: check diagnostics"
+            )
+        else:
+            failed_text = ", ".join(failed_plots)
+            self.dashboard_stability_banner.setText(f"Warning: analysis partial; {failed_text} figure failed")
+            self._set_banner_state(self.dashboard_stability_banner, "warning")
+            self.figure_status_label.setText(f"Figures: partial; failed {failed_text} plot")
+            self._update_workflow_status(f"Warning: analysis partial; failed {failed_text} plot")
         self._sync_action_enabled()
-        return True
+        return figures_ok
 
     def fill_stability(self, stability: StabilityResult) -> None:
-        payload = stability.as_dict()
-        lines = [f"{key}: {value}" for key, value in payload.items()]
-        self.stability_text.setPlainText("\n".join(lines))
+        self.stability_text.setPlainText(format_stability_report(stability))
 
     def fill_summary(self, values: dict[str, float | None]) -> None:
-        self.summary_table.setRowCount(len(values))
-        for row, (key, value) in enumerate(values.items()):
-            key_item = QTableWidgetItem(key)
-            if value is None:
-                value_text = "not applicable"
-            elif isinstance(value, float):
-                value_text = f"{value:.8g}"
-            else:
-                value_text = str(value)
+        rows = summary_display_rows(values)
+        self.summary_table.setRowCount(len(rows))
+        for row, (label, value_text) in enumerate(rows):
+            key_item = QTableWidgetItem(label)
             value_item = QTableWidgetItem(value_text)
             value_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.summary_table.setItem(row, 0, key_item)
@@ -950,11 +1132,8 @@ class MainWindow(QMainWindow):
             self.figure_status_label.setText("Figures: unavailable; fix derived analysis error")
             return
         summary = self.current_summary.as_dict()
-        generated = [
-            self.current_line_data is not None,
-            self.current_polar_data is not None,
-            self.current_surface is not None,
-        ]
+        preview_flags = self._figure_preview_flags()
+        generated = list(preview_flags.values())
         dashboard = build_dashboard_state(
             summary,
             self.current_stability,
@@ -988,7 +1167,7 @@ class MainWindow(QMainWindow):
             raise RuntimeError("No valid tensor is available. Run Analyze + Update Figures first.")
         return self.current_tensor
 
-    def update_line_plot(self) -> None:
+    def update_line_plot(self) -> bool:
         self.current_line_data = None
         try:
             tensor = self.require_tensor()
@@ -1030,10 +1209,13 @@ class MainWindow(QMainWindow):
             self.line_pane.clear()
             self._sync_action_enabled()
             self.show_error("1D plot failed", exc)
+            return False
         else:
+            self._refresh_figure_status()
             self._sync_action_enabled()
+            return True
 
-    def update_polar_plot(self) -> None:
+    def update_polar_plot(self) -> bool:
         self.current_polar_data = None
         try:
             tensor = self.require_tensor()
@@ -1056,10 +1238,13 @@ class MainWindow(QMainWindow):
             self.polar_pane.clear()
             self._sync_action_enabled()
             self.show_error("2D plot failed", exc)
+            return False
         else:
+            self._refresh_figure_status()
             self._sync_action_enabled()
+            return True
 
-    def update_surface_plot(self) -> None:
+    def update_surface_plot(self) -> bool:
         self.current_surface = None
         try:
             tensor = self.require_tensor()
@@ -1070,6 +1255,7 @@ class MainWindow(QMainWindow):
                 phi_count=self.phi_spin.value(),
             )
             self.current_surface = surface
+            self.surface_extrema_label.setText(format_sampled_surface_extrema(surface))
             self._refresh_render3d_status_label()
             try:
                 self.surface_pane.set_image(
@@ -1078,21 +1264,38 @@ class MainWindow(QMainWindow):
                         options=self._render3d_options(window_size=(1400, 1100)),
                     )
                 )
-            except PyVistaUnavailableError:
-                self.surface_pane.set_figure(
-                    plot_directional_surface(
-                        surface,
-                        theme_name=self.theme_combo.currentText(),
-                        palette_name=self.cmap_combo.currentText(),
-                    )
+            except Exception as exc:
+                fallback_reason = str(exc).strip() or exc.__class__.__name__
+                self.render3d_status_label.setText(
+                    f"3D backend: Matplotlib fallback ({fallback_reason})"
                 )
+                try:
+                    self.surface_pane.set_figure(
+                        plot_directional_surface(
+                            surface,
+                            theme_name=self.theme_combo.currentText(),
+                            palette_name=self.cmap_combo.currentText(),
+                        )
+                    )
+                except Exception as fallback_exc:
+                    fallback_failure = (
+                        str(fallback_exc).strip() or fallback_exc.__class__.__name__
+                    )
+                    raise RuntimeError(
+                        "PyVista render failed "
+                        f"({fallback_reason}); Matplotlib fallback failed ({fallback_failure})"
+                    ) from fallback_exc
         except Exception as exc:
             self.current_surface = None
+            self.surface_extrema_label.setText("Sampled-grid extrema: unavailable because the 3D plot failed.")
             self.surface_pane.clear()
             self._sync_action_enabled()
             self.show_error("3D plot failed", exc)
+            return False
         else:
+            self._refresh_figure_status()
             self._sync_action_enabled()
+            return True
 
     def _default_high_symmetry_path(self):
         return [
@@ -1204,7 +1407,7 @@ class MainWindow(QMainWindow):
             return
         if selected_filter.startswith("Excel") and not path.lower().endswith(".xlsx"):
             path = f"{path}.xlsx"
-        frame = pd.DataFrame([self.current_summary.as_dict()])
+        frame = pd.DataFrame([summary_labeled_values(self.current_summary.as_dict())])
         try:
             if selected_filter.startswith("Excel") or path.lower().endswith(".xlsx"):
                 frame.to_excel(path, index=False)
@@ -1217,7 +1420,7 @@ class MainWindow(QMainWindow):
         if self.current_summary is None:
             self.show_error("Copy summary failed", RuntimeError("Run Analyze + Update Figures first."))
             return
-        frame = pd.DataFrame([self.current_summary.as_dict()])
+        frame = pd.DataFrame([summary_labeled_values(self.current_summary.as_dict())])
         QGuiApplication.clipboard().setText(frame.to_csv(index=False))
 
     def export_model_table(self) -> None:
@@ -1460,6 +1663,10 @@ class MainWindow(QMainWindow):
             export_sampled_data(tensor, data, path, kind=kind)
         except Exception as exc:
             self.show_error("Save sampled data failed", exc)
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt override name
+        self._clear_plot_previews()
+        super().closeEvent(event)
 
     def show_error(self, title: str, exc: Exception) -> None:
         QMessageBox.critical(self, title, str(exc))

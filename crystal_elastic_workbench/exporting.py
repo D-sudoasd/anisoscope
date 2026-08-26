@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -158,6 +161,134 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+_ANALYSIS_PACKAGE_FILENAMES = (
+    "stiffness_matrix.csv",
+    "compliance_matrix.csv",
+    "polycrystalline_summary.csv",
+    "elastic_model_summary.csv",
+    "elastic_model_summary.xlsx",
+    "elastic_model_notes.json",
+    "stability.json",
+    "plane_xy_young.csv",
+    "plane_xy_compressibility.csv",
+    "surface_young.csv",
+    "surface_compressibility.csv",
+    "surface_shear.csv",
+    "surface_poisson.csv",
+    "manifest.json",
+)
+
+
+def _path_exists(path: Path) -> bool:
+    """Return whether a path exists, including a dangling symlink."""
+
+    return path.exists() or path.is_symlink()
+
+
+def _remove_path(path: Path) -> None:
+    """Remove a file, symlink, or directory used by a failed commit."""
+
+    if not _path_exists(path):
+        return
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def _validate_analysis_sampling_counts(
+    plane_angle_count: int,
+    sphere_theta_count: int,
+    sphere_phi_count: int,
+) -> tuple[int, int, int]:
+    """Validate all package sampling sizes before touching the output path."""
+
+    for name, value, minimum in (
+        ("plane_angle_count", plane_angle_count, 3),
+        ("sphere_theta_count", sphere_theta_count, 3),
+        ("sphere_phi_count", sphere_phi_count, 4),
+    ):
+        if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+            raise TypeError(f"{name} must be an integer.")
+        if value < minimum:
+            raise ValueError(f"{name} must be at least {minimum}.")
+    return int(plane_angle_count), int(sphere_theta_count), int(sphere_phi_count)
+
+
+def _rollback_analysis_commit(records: list[dict[str, Any]]) -> None:
+    """Best-effort restoration of files changed by a partial package commit."""
+
+    for record in reversed(records):
+        target = record["target"]
+        backup = record["backup"]
+        staged = record["staged"]
+        had_old = record["had_old"]
+        installed = record["installed"]
+
+        # A replace that raises after performing the OS operation is unusual,
+        # but detecting the consumed staging file lets rollback handle it.
+        if not installed and not _path_exists(staged) and _path_exists(target):
+            installed = True
+        if not installed:
+            continue
+
+        try:
+            if had_old and _path_exists(backup):
+                try:
+                    os.replace(backup, target)
+                except OSError:
+                    shutil.copy2(backup, target, follow_symlinks=False)
+            else:
+                _remove_path(target)
+        except Exception:
+            # Preserve the original commit exception; this is deliberately
+            # best effort because a locked target can also block rollback.
+            continue
+
+
+def _commit_analysis_package(staging_dir: Path, output_dir: Path) -> None:
+    """Replace only package-owned files, restoring them if commit fails."""
+
+    output_preexisted = _path_exists(output_dir)
+    if output_preexisted and not output_dir.is_dir():
+        raise NotADirectoryError(f"Output path is not a directory: {output_dir}")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    backup_dir = staging_dir / ".previous"
+    records: list[dict[str, Any]] = []
+    try:
+        for filename in _ANALYSIS_PACKAGE_FILENAMES:
+            staged = staging_dir / filename
+            if not staged.is_file():
+                raise FileNotFoundError(f"Staged package file is missing: {filename}")
+
+            target = output_dir / filename
+            had_old = _path_exists(target)
+            backup = backup_dir / filename
+            record = {
+                "target": target,
+                "backup": backup,
+                "staged": staged,
+                "had_old": had_old,
+                "installed": False,
+            }
+            records.append(record)
+
+            if had_old:
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(target, backup, follow_symlinks=False)
+            os.replace(staged, target)
+            record["installed"] = True
+    except BaseException:
+        _rollback_analysis_commit(records)
+        if not output_preexisted:
+            try:
+                output_dir.rmdir()
+            except OSError:
+                pass
+        raise
+
+
 def export_elastic_model_table(tensor: ElasticTensor, output_path: str | Path) -> Path:
     """Export the current Voigt/Reuss/Hill/Geometric comparison table."""
 
@@ -212,7 +343,7 @@ def write_export_manifest(
     return manifest_path
 
 
-def export_analysis_package(
+def _build_analysis_package(
     tensor: ElasticTensor,
     output_dir: str | Path,
     *,
@@ -227,7 +358,6 @@ def export_analysis_package(
     """
 
     out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
 
     files: dict[str, str] = {}
 
@@ -323,3 +453,38 @@ def export_analysis_package(
     manifest_path = out / "manifest.json"
     _write_json(manifest_path, manifest)
     return manifest_path
+
+
+def export_analysis_package(
+    tensor: ElasticTensor,
+    output_dir: str | Path,
+    *,
+    plane_angle_count: int = 361,
+    sphere_theta_count: int = 37,
+    sphere_phi_count: int = 73,
+) -> Path:
+    """Export an analysis package through a same-parent staging directory."""
+
+    plane_angle_count, sphere_theta_count, sphere_phi_count = _validate_analysis_sampling_counts(
+        plane_angle_count,
+        sphere_theta_count,
+        sphere_phi_count,
+    )
+    out = Path(output_dir)
+    if _path_exists(out) and not out.is_dir():
+        raise NotADirectoryError(f"Output path is not a directory: {out}")
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(tempfile.mkdtemp(prefix=".analysis-package-", dir=out.parent))
+    try:
+        _build_analysis_package(
+            tensor,
+            staging_dir,
+            plane_angle_count=plane_angle_count,
+            sphere_theta_count=sphere_theta_count,
+            sphere_phi_count=sphere_phi_count,
+        )
+        _commit_analysis_package(staging_dir, out)
+        return out / "manifest.json"
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)

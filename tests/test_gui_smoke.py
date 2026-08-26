@@ -2,9 +2,17 @@ import os
 import json
 
 import numpy as np
+import pandas as pd
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+
+def _flush_qt_deferred_deletes(app) -> None:
+    from PySide6.QtCore import QEvent
+
+    app.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
 
 
 def test_main_window_loads_example_and_analyzes(qtbot=None):
@@ -25,7 +33,112 @@ def test_main_window_loads_example_and_analyzes(qtbot=None):
     assert window.summary_table.rowCount() > 0
     assert window.model_table.rowCount() == 4
     assert window.export_model_table_button.text() == "Export Model Table"
-    assert "overall_stable" in window.stability_text.toPlainText()
+    assert "Overall stability: PASS" in window.stability_text.toPlainText()
+    assert "overall_stable" not in window.stability_text.toPlainText()
+    assert window.summary_table.item(0, 0).text() == "Bulk modulus (Voigt) [GPa]"
+    assert window.model_table.horizontalHeaderItem(2).text() == "B [GPa]"
+    assert "Sampled-grid extrema" in window.surface_extrema_label.text()
+    assert "refine theta/phi" in window.surface_extrema_label.text()
+    window.close()
+    app.processEvents()
+
+
+def test_summary_save_and_copy_use_readable_labels_with_numeric_values(tmp_path, monkeypatch, qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication, QFileDialog
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.theta_spin.setValue(7)
+    window.phi_spin.setValue(13)
+    assert window.analyze_current_matrix() is True
+    output = tmp_path / "summary.csv"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_args, **_kwargs: (str(output), "CSV (*.csv)"))
+
+    window.save_summary()
+    exported = pd.read_csv(output)
+    assert "Bulk modulus (Voigt) [GPa]" in exported.columns
+    assert "bulk_voigt_gpa" not in exported.columns
+    assert pd.api.types.is_numeric_dtype(exported["Bulk modulus (Voigt) [GPa]"])
+
+    window.copy_summary()
+    copied = QApplication.clipboard().text()
+    assert "Bulk modulus (Voigt) [GPa]" in copied
+    assert "bulk_voigt_gpa" not in copied
+
+    window.close()
+    app.processEvents()
+
+
+def test_long_material_name_is_compact_in_status_chip_and_available_in_tooltip(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    material_name = "Very long research material identifier with processing condition"
+
+    window.material_edit.setText(material_name)
+
+    assert window.material_status_chip.text().endswith("...")
+    assert len(window.material_status_chip.text()) <= len("Material: ") + 28
+    assert window.material_status_chip.toolTip() == f"Material: {material_name}"
+
+    window.close()
+    app.processEvents()
+
+
+def test_input_panel_scrolls_on_laptop_height_instead_of_forcing_a_tall_window(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.resize(1280, 720)
+    window.show()
+    app.processEvents()
+
+    assert window.minimumSizeHint().height() <= 720
+    assert window.minimumSizeHint().width() <= 1280
+    assert window.width() <= 1280
+    assert window.height() <= 720
+    assert window.input_scroll.verticalScrollBar().maximum() > 0
+    assert window.input_scroll.isAncestorOf(window.analyze_workflow_button) is False
+    assert window.analyze_workflow_button.isVisible() is True
+
+    window.close()
+    app.processEvents()
+
+
+def test_narrow_window_stacks_input_and_results_to_keep_controls_reachable(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.resize(1024, 768)
+    window.show()
+    app.processEvents()
+
+    assert window.main_splitter.orientation() == Qt.Vertical
+    assert window.width() <= 1024
+    assert window.analyze_workflow_button.isVisible() is True
+    assert window.tabs.isVisible() is True
+    assert window.input_scroll.horizontalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+
+    window.resize(1280, 720)
+    app.processEvents()
+    assert window.main_splitter.orientation() == Qt.Horizontal
+
     window.close()
     app.processEvents()
 
@@ -308,9 +421,12 @@ def test_unstable_matrix_keeps_stability_diagnostics_when_summary_fails(qtbot=No
     assert window.current_stability is not None
     assert window.current_stability.overall_stable is False
     assert window.current_summary is None
-    assert "overall_stable" in window.stability_text.toPlainText()
+    assert "Overall stability: FAIL" in window.stability_text.toPlainText()
     assert seen["title"] == "Derived analysis failed"
     assert "Reuss shear modulus" in seen["error"]
+    assert window.export_model_table_button.isEnabled() is False
+    assert window.export_paper_figures_button.isEnabled() is False
+    assert window.export_full_package_button.isEnabled() is False
 
     window.close()
     app.processEvents()
@@ -607,3 +723,341 @@ def test_gui_mp4_export_forwards_surface_style_options(tmp_path, monkeypatch, qt
 
     window.close()
     app.processEvents()
+
+
+def test_style_changes_clear_previews_but_keep_sampled_data_and_data_exports(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.theta_spin.setValue(7)
+    window.phi_spin.setValue(13)
+    assert window.analyze_current_matrix() is True
+    original_data = (window.current_line_data, window.current_polar_data, window.current_surface)
+
+    # Any style change makes the visible previews stale, but sampled arrays remain
+    # valid for data/animation export and can be re-rendered explicitly.
+    window.theme_combo.setCurrentText("Gray Print")
+    for pane in (window.line_pane, window.polar_pane, window.surface_pane):
+        assert pane.preview_mode == "empty"
+    assert (window.current_line_data, window.current_polar_data, window.current_surface) == original_data
+    assert window.line_save_button.isEnabled() is False
+    assert window.polar_save_button.isEnabled() is False
+    assert window.surface_save_button.isEnabled() is False
+    assert window.line_save_data_button.isEnabled() is True
+    assert window.polar_save_data_button.isEnabled() is True
+    assert window.surface_save_data_button.isEnabled() is True
+    assert window.gif_button.isEnabled() is True
+    assert window.mp4_button.isEnabled() is True
+
+    # Re-render so the remaining style controls exercise the same invalidation
+    # contract without discarding the analysis itself.
+    assert window.update_line_plot() is True
+    assert "incomplete" in window.figure_status_label.text().lower()
+    assert window.update_polar_plot() is True
+    assert "incomplete" in window.figure_status_label.text().lower()
+    assert window.update_surface_plot() is True
+    assert "updated" in window.figure_status_label.text().lower()
+    assert "analysis complete" in window.workflow_status_label.text().lower()
+    window.palette_combo.setCurrentText("Nature Muted")
+    assert window.line_pane.preview_mode == "empty"
+    assert window.polar_pane.preview_mode == "empty"
+    assert window.surface_pane.preview_mode == "empty"
+    assert window.line_save_data_button.isEnabled() is True
+    assert window.polar_save_data_button.isEnabled() is True
+    assert window.surface_save_data_button.isEnabled() is True
+    assert window.gif_button.isEnabled() is True
+    assert window.mp4_button.isEnabled() is True
+
+    assert window.update_line_plot() is True
+    assert window.update_polar_plot() is True
+    assert window.update_surface_plot() is True
+    window.export_dpi_spin.setValue(window.export_dpi_spin.value() + 1)
+    assert window.line_pane.preview_mode == "empty"
+    assert window.polar_pane.preview_mode == "empty"
+    assert window.surface_pane.preview_mode == "empty"
+    assert window.line_save_data_button.isEnabled() is True
+    assert window.polar_save_data_button.isEnabled() is True
+    assert window.surface_save_data_button.isEnabled() is True
+    assert window.gif_button.isEnabled() is True
+    assert window.mp4_button.isEnabled() is True
+
+    assert window.update_line_plot() is True
+    assert window.update_polar_plot() is True
+    assert window.update_surface_plot() is True
+    window.transparent_background_checkbox.setChecked(True)
+    assert window.line_pane.preview_mode == "empty"
+    assert window.polar_pane.preview_mode == "empty"
+    assert window.surface_pane.preview_mode == "empty"
+    assert window.line_save_data_button.isEnabled() is True
+    assert window.polar_save_data_button.isEnabled() is True
+    assert window.surface_save_data_button.isEnabled() is True
+    assert window.gif_button.isEnabled() is True
+    assert window.mp4_button.isEnabled() is False
+
+    window.close()
+    app.processEvents()
+
+
+def test_3d_cmap_change_clears_only_surface_preview_and_forwards_new_cmap(monkeypatch, qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench import gui as gui_module
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.theta_spin.setValue(7)
+    window.phi_spin.setValue(13)
+    assert window.analyze_current_matrix() is True
+    assert window.line_pane.preview_mode == "figure"
+    assert window.polar_pane.preview_mode == "figure"
+    original_surface = window.current_surface
+    palette_index = window.cmap_combo.findText("Blue-Gold")
+    assert palette_index >= 0
+    window.cmap_combo.setCurrentIndex(palette_index)
+
+    assert window.current_surface is original_surface
+    assert window.surface_pane.preview_mode == "empty"
+    assert window.line_pane.preview_mode == "figure"
+    assert window.polar_pane.preview_mode == "figure"
+    assert window.surface_save_button.isEnabled() is False
+    assert window.surface_save_data_button.isEnabled() is True
+    assert window.gif_button.isEnabled() is True
+    assert window.mp4_button.isEnabled() is True
+
+    seen = {}
+
+    def fake_render(surface, *, options):
+        seen["palette"] = options.palette_name
+        return np.zeros((8, 8, 4), dtype=np.uint8)
+
+    monkeypatch.setattr(gui_module, "render_surface_image", fake_render)
+    assert window.update_surface_plot() is True
+    assert seen["palette"] == "Blue-Gold"
+    assert window.surface_pane.preview_mode == "image"
+    assert window.surface_save_button.isEnabled() is True
+
+    window.lighting_spin.setValue(window.lighting_spin.value() - 1)
+    assert window.surface_pane.preview_mode == "empty"
+    assert window.line_pane.preview_mode == "figure"
+    assert window.polar_pane.preview_mode == "figure"
+    assert window.surface_save_data_button.isEnabled() is True
+
+    assert window.update_surface_plot() is True
+    window.surface_smoothing_spin.setValue(window.surface_smoothing_spin.value() + 1)
+    assert window.surface_pane.preview_mode == "empty"
+
+    assert window.update_surface_plot() is True
+    window.show_edges_checkbox.setChecked(True)
+    assert window.surface_pane.preview_mode == "empty"
+
+    window.close()
+    app.processEvents()
+
+
+def test_analyze_returns_false_and_keeps_scalars_when_one_figure_fails(monkeypatch, qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench import gui as gui_module
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.theta_spin.setValue(7)
+    window.phi_spin.setValue(13)
+    seen = {}
+    window.show_error = lambda title, exc: seen.setdefault("errors", []).append((title, str(exc)))
+    original_render_surface_image = gui_module.render_surface_image
+
+    def fail_render(*_args, **_kwargs):
+        raise RuntimeError("render unavailable")
+
+    def fail_fallback(*_args, **_kwargs):
+        raise RuntimeError("fallback unavailable")
+
+    # Exercise the real update_surface_plot exception path: sampling succeeds,
+    # but the renderer fails after the surface has been computed.
+    monkeypatch.setattr(gui_module, "render_surface_image", fail_render)
+    monkeypatch.setattr(gui_module, "plot_directional_surface", fail_fallback)
+    assert window.analyze_current_matrix() is False
+    assert window.current_summary is not None
+    assert window.current_line_data is not None
+    assert window.current_polar_data is not None
+    assert window.current_surface is None
+    assert window.line_pane.preview_mode == "figure"
+    assert window.polar_pane.preview_mode == "figure"
+    assert "partial" in window.workflow_status_label.text().lower()
+    assert "warning" in window.workflow_status_label.text().lower()
+    assert "3D" in window.figure_status_label.text()
+    assert window.metric_labels["B_H"].text() != "-"
+    assert seen["errors"] == [
+        (
+            "3D plot failed",
+            "PyVista render failed (render unavailable); "
+            "Matplotlib fallback failed (fallback unavailable)",
+        )
+    ]
+
+    # Restore the renderer and confirm that a single successful re-render
+    # recomputes both dashboard and workflow figure state.
+    monkeypatch.setattr(gui_module, "render_surface_image", original_render_surface_image)
+    monkeypatch.undo()
+    assert window.update_surface_plot() is True
+    assert window.current_surface is not None
+    assert "updated" in window.figure_status_label.text().lower()
+    assert "analysis complete" in window.workflow_status_label.text().lower()
+
+    window.close()
+    app.processEvents()
+
+
+def test_gui_falls_back_to_matplotlib_after_generic_pyvista_runtime_error(
+    monkeypatch,
+    qtbot=None,
+):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench import gui as gui_module
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.theta_spin.setValue(7)
+    window.phi_spin.setValue(13)
+
+    def fail_render(*_args, **_kwargs):
+        raise RuntimeError("VTK context lost")
+
+    monkeypatch.setattr(gui_module, "render_surface_image", fail_render)
+
+    assert window.update_surface_plot() is True
+    assert window.current_surface is not None
+    assert window.surface_pane.preview_mode == "figure"
+    assert "Matplotlib fallback" in window.render3d_status_label.text()
+    assert "VTK context lost" in window.render3d_status_label.text()
+
+    window.close()
+    app.processEvents()
+
+
+def test_figure_pane_cleanup_destroys_preview_widgets_without_top_level_orphans(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import FigureCanvas, ImagePreviewLabel, MainWindow, NavigationToolbar
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.theta_spin.setValue(7)
+    window.phi_spin.setValue(13)
+    assert window.analyze_current_matrix() is True
+
+    # Cover both Matplotlib canvas/toolbar and the image-preview branch.
+    window.surface_pane.set_image(np.zeros((8, 8, 4), dtype=np.uint8))
+    for theme in ("Gray Print", "Nature White"):
+        window.theme_combo.setCurrentText(theme)
+        _flush_qt_deferred_deletes(app)
+        assert all(pane.preview_mode == "empty" for pane in (window.line_pane, window.polar_pane, window.surface_pane))
+        for pane in (window.line_pane, window.polar_pane, window.surface_pane):
+            assert pane.findChildren(FigureCanvas) == []
+            assert pane.findChildren(NavigationToolbar) == []
+            assert pane.findChildren(ImagePreviewLabel) == []
+        assert not any(
+            isinstance(widget, (FigureCanvas, NavigationToolbar, ImagePreviewLabel))
+            for widget in app.topLevelWidgets()
+        )
+        assert window.analyze_current_matrix() is True
+
+    window.close()
+    _flush_qt_deferred_deletes(app)
+    assert all(pane.preview_mode == "empty" for pane in (window.line_pane, window.polar_pane, window.surface_pane))
+    for pane in (window.line_pane, window.polar_pane, window.surface_pane):
+        assert pane.findChildren(FigureCanvas) == []
+        assert pane.findChildren(NavigationToolbar) == []
+        assert pane.findChildren(ImagePreviewLabel) == []
+    assert not any(
+        isinstance(widget, (FigureCanvas, NavigationToolbar, ImagePreviewLabel))
+        for widget in app.topLevelWidgets()
+    )
+
+
+def test_plot_update_methods_return_success_booleans(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.theta_spin.setValue(7)
+    window.phi_spin.setValue(13)
+    assert window.update_line_plot() is True
+    assert window.update_polar_plot() is True
+    assert window.update_surface_plot() is True
+    window.close()
+    app.processEvents()
+
+
+def test_mode_specific_sampling_controls_are_visible_only_when_relevant(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+
+    window.line_mode_combo.setCurrentText("Angle in plane")
+    assert window.line_plane_label.isHidden() is False
+    assert window.line_plane_combo.isHidden() is False
+    assert window.line_path_label.isHidden() is True
+    assert window.path_edit.isHidden() is True
+
+    window.line_mode_combo.setCurrentText("High-symmetry path")
+    assert window.line_plane_label.isHidden() is True
+    assert window.line_plane_combo.isHidden() is True
+    assert window.line_path_label.isHidden() is True
+    assert window.path_edit.isHidden() is True
+
+    window.line_mode_combo.setCurrentText("Custom path")
+    assert window.line_plane_label.isHidden() is True
+    assert window.line_plane_combo.isHidden() is True
+    assert window.line_path_label.isHidden() is False
+    assert window.path_edit.isHidden() is False
+
+    window.polar_plane_combo.setCurrentText("xy")
+    assert window.polar_normal_label.isHidden() is True
+    assert window.normal_edit.isHidden() is True
+    window.polar_plane_combo.setCurrentText("custom normal")
+    assert window.polar_normal_label.isHidden() is False
+    assert window.normal_edit.isHidden() is False
+
+    window.close()
+    app.processEvents()
+
+
+def test_closing_window_clears_matplotlib_previews(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.theta_spin.setValue(7)
+    window.phi_spin.setValue(13)
+    assert window.analyze_current_matrix() is True
+    assert window.line_pane.preview_mode == "figure"
+    assert window.polar_pane.preview_mode == "figure"
+    window.close()
+    app.processEvents()
+    assert window.line_pane.preview_mode == "empty"
+    assert window.polar_pane.preview_mode == "empty"
+    assert window.surface_pane.preview_mode == "empty"

@@ -188,12 +188,20 @@ conversion is covered by analytical regression tests.
 - surface samples for Young's modulus, compressibility, shear modulus, and
   Poisson ratio
 
+The package is staged before publication. Failed calculations do not mix new
+tables with an older manifest, and files outside the documented package set are
+left untouched.
+
 Single-figure, animation, sampled-data, and model-table exports write a sidecar
 named `<output>.manifest.json`. The sidecar records the input matrix, unit,
 crystal system, program version, export type, plotting choices, and sampling
 grid. For shear and Poisson-ratio sampling, it also records the transverse
 aggregation and sample count; figure and animation sidecars include the
-relevant rendering settings.
+relevant rendering settings. An animation and its sidecar, and the three paper
+figures with their sidecars, are each published as a rollback-protected set so
+a failed replacement does not leave mixed versions.
+Fallback sidecars distinguish effective Matplotlib settings from the requested
+PyVista render style and list any ignored backend-specific options explicitly.
 
 ## 3D Rendering and Palettes
 
@@ -201,7 +209,12 @@ The preferred three-dimensional path uses PyVista/VTK for the surface and
 Matplotlib for high-resolution composition. If PyVista rendering is unavailable,
 figure export can use a Matplotlib fallback. Sequential palettes should be used
 for non-negative moduli or magnitudes; diverging palettes are appropriate only
-for quantities with a meaningful center or sign change.
+for quantities with a meaningful center or sign change. When a diverging
+palette spans negative and positive values, its color limits are made symmetric
+so zero remains at the visual center.
+Each 3D view marks and reports the minimum and maximum found on the sampled
+direction grid. Refine the angular grid to check convergence; these annotations
+do not assert continuous global extrema.
 
 On a headless host where VTK cannot create a stable graphics context, set
 `ANISOSCOPE_DISABLE_PYVISTA=1` to force the Matplotlib fallback. The accepted

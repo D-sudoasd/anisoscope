@@ -21,15 +21,15 @@ from crystal_elastic_workbench.plot_styles import (
     get_theme,
     matplotlib_rc_params,
     palette_colormap,
+    surface_color_limits,
 )
+from crystal_elastic_workbench.result_presentation import format_sampled_surface_extrema
 from crystal_elastic_workbench.sampling import DirectionalSurface
 
 
 _PROPERTY_LABELS = {
     "young": "E(n) [GPa]",
     "compressibility": "beta(n) [1/GPa]",
-    "shear": "G(n,m) [GPa]",
-    "poisson": "nu(n,m)",
 }
 
 _PROPERTY_TITLES = {
@@ -42,6 +42,21 @@ _PROPERTY_TITLES = {
 
 class PyVistaUnavailableError(RuntimeError):
     """Raised when the PyVista/VTK backend cannot be initialized."""
+
+
+def _surface_property_label(surface: DirectionalSurface) -> str:
+    if surface.property_name == "shear":
+        return f"G(n,m), transverse {surface.transverse_mode} [GPa]"
+    if surface.property_name == "poisson":
+        return f"nu(n,m), transverse {surface.transverse_mode}"
+    return _PROPERTY_LABELS.get(surface.property_name, surface.property_name)
+
+
+def _surface_property_title(surface: DirectionalSurface) -> str:
+    title = _PROPERTY_TITLES.get(surface.property_name, surface.property_name)
+    if surface.property_name in {"shear", "poisson"}:
+        return f"{title}, transverse {surface.transverse_mode}"
+    return title
 
 
 @dataclass(frozen=True)
@@ -104,6 +119,38 @@ def render3d_style_parameters(options: Render3DOptions) -> dict[str, object]:
         "diffuse": options.diffuse,
         "specular": options.specular,
         "specular_power": options.specular_power,
+    }
+
+
+def render3d_manifest_style_parameters(
+    options: Render3DOptions,
+    *,
+    backend: str,
+) -> dict[str, object]:
+    """Report requested and effective style parameters for a render backend."""
+
+    if backend not in {"pyvista", "matplotlib"}:
+        raise ValueError("backend must be either 'pyvista' or 'matplotlib'.")
+    requested = render3d_style_parameters(options)
+    if backend == "pyvista":
+        return {
+            **requested,
+            "requested_render_style": requested,
+            "ignored_render_options": [],
+        }
+
+    ignored = [
+        key
+        for key in requested
+        if key not in {"palette", "palette_category"}
+    ]
+    return {
+        "palette": options.palette_name,
+        "palette_category": get_palette(options.palette_name).category,
+        "compose_annotations": True,
+        "annotation_backend": "matplotlib",
+        "requested_render_style": requested,
+        "ignored_render_options": ignored,
     }
 
 
@@ -240,7 +287,7 @@ def _camera_for(surface: DirectionalSurface, *, azimuth_deg: float, elevation_de
 
 def _pyvista_scalar_bar_args(surface: DirectionalSurface, options: Render3DOptions, theme) -> dict[str, object]:
     return {
-        "title": _PROPERTY_LABELS.get(surface.property_name, surface.property_name),
+        "title": _surface_property_label(surface),
         "title_font_size": options.colorbar_title_size,
         "label_font_size": options.colorbar_tick_size,
         "color": theme.text_color,
@@ -272,9 +319,11 @@ def _build_plotter(
         plotter.enable_parallel_projection()
     _add_three_point_lighting(pv, plotter, options)
     mesh = _surface_mesh(pv, surface, options)
+    clim = surface_color_limits(surface.values, options.palette_name)
     mesh_kwargs = {
         "scalars": "value",
         "cmap": palette_colormap(options.palette_name),
+        "clim": clim,
         "smooth_shading": options.smooth_shading,
         "show_edges": options.show_edges,
         "edge_color": "#404040",
@@ -291,14 +340,29 @@ def _build_plotter(
         mesh,
         **mesh_kwargs,
     )
+    plotter.add_points(
+        np.asarray([surface.min_value * surface.min_direction]),
+        color="#d33f49",
+        point_size=12,
+        render_points_as_spheres=True,
+        label="Sampled-grid min",
+    )
+    plotter.add_points(
+        np.asarray([surface.max_value * surface.max_direction]),
+        color="#2a9d8f",
+        point_size=12,
+        render_points_as_spheres=True,
+        label="Sampled-grid max",
+    )
     if not options.compose_annotations:
         plotter.add_text(
-            f"{_PROPERTY_TITLES.get(surface.property_name, surface.property_name)} directional surface",
+            f"{_surface_property_title(surface)} directional surface",
             position="upper_edge",
             font_size=options.title_font_size,
             color=theme.text_color,
         )
         plotter.add_axes(line_width=1, labels_off=False)
+        plotter.add_legend()
     plotter.camera_position = _camera_for(surface, azimuth_deg=azimuth, elevation_deg=elevation)
     if options.parallel_projection:
         plotter.camera.parallel_projection = True
@@ -306,11 +370,8 @@ def _build_plotter(
     return plotter
 
 
-def _normalizer(surface: DirectionalSurface):
-    vmin = float(np.nanmin(surface.values))
-    vmax = float(np.nanmax(surface.values))
-    if abs(vmax - vmin) < 1e-14:
-        return colors.Normalize(vmin=vmin - 1.0, vmax=vmax + 1.0)
+def _normalizer(surface: DirectionalSurface, palette_name: str = DEFAULT_3D_PALETTE_NAME):
+    vmin, vmax = surface_color_limits(surface.values, palette_name)
     return colors.Normalize(vmin=vmin, vmax=vmax)
 
 
@@ -345,7 +406,7 @@ def _compose_surface_annotations(image: np.ndarray, surface: DirectionalSurface,
         ax.imshow(_crop_rendered_surface(image))
         ax.set_axis_off()
         fig.suptitle(
-            f"{_PROPERTY_TITLES.get(surface.property_name, surface.property_name)} directional surface",
+            f"{_surface_property_title(surface)} directional surface",
             x=0.405,
             y=0.925,
             fontsize=options.title_font_size,
@@ -353,7 +414,10 @@ def _compose_surface_annotations(image: np.ndarray, surface: DirectionalSurface,
             fontweight="regular",
         )
         cbar_ax = fig.add_axes([0.825, 0.245, 0.028, 0.50])
-        mappable = ScalarMappable(norm=_normalizer(surface), cmap=palette_colormap(options.palette_name))
+        mappable = ScalarMappable(
+            norm=_normalizer(surface, options.palette_name),
+            cmap=palette_colormap(options.palette_name),
+        )
         mappable.set_array(surface.values)
         colorbar = fig.colorbar(mappable, cax=cbar_ax)
         colorbar.ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
@@ -366,10 +430,19 @@ def _compose_surface_annotations(image: np.ndarray, surface: DirectionalSurface,
         colorbar.outline.set_edgecolor(theme.axis_color)
         colorbar.outline.set_linewidth(theme.spine_width)
         colorbar.ax.set_title(
-            _PROPERTY_LABELS.get(surface.property_name, surface.property_name),
+            _surface_property_label(surface),
             color=theme.text_color,
             fontsize=options.colorbar_title_size,
             pad=8,
+        )
+        fig.text(
+            0.50,
+            0.035,
+            format_sampled_surface_extrema(surface),
+            ha="center",
+            va="bottom",
+            fontsize=max(7, options.label_font_size - 2),
+            color=theme.text_color,
         )
         fig.canvas.draw()
         rgba = np.asarray(fig.canvas.buffer_rgba()).copy()
