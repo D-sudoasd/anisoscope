@@ -11,6 +11,8 @@ import crystal_elastic_workbench.render3d as render3d_module
 from crystal_elastic_workbench.render3d import (
     PyVistaUnavailableError,
     Render3DOptions,
+    _display_coordinates,
+    _normalizer,
     pyvista_status,
     render_surface_image,
     render_surface_png,
@@ -71,6 +73,11 @@ def test_render3d_defaults_match_high_quality_white_backend():
     assert options.colorbar_tick_size == 10
     assert options.lighting_intensity == pytest.approx(1.0)
     assert options.surface_subdivision == 1
+    assert options.scalar_range is None
+    assert options.edge_color == "#404040"
+    assert options.edge_line_width == pytest.approx(0.4)
+    assert options.radius_mode == "physical"
+    assert options.radius_scale == pytest.approx(1.0)
     assert options.ambient == pytest.approx(0.28)
     assert options.diffuse == pytest.approx(0.74)
     assert options.specular == pytest.approx(0.32)
@@ -90,6 +97,11 @@ def test_render3d_style_parameters_include_palette_and_annotation_metadata():
     assert parameters["label_font_size"] == 12
     assert parameters["colorbar_title_size"] == 12
     assert parameters["colorbar_tick_size"] == 10
+    assert parameters["scalar_range"] is None
+    assert parameters["radius_mode"] == "physical"
+    assert parameters["radius_scale"] == 1.0
+    assert parameters["edge_color"] == "#404040"
+    assert parameters["edge_line_width"] == 0.4
 
 
 def test_matplotlib_manifest_separates_requested_from_effective_3d_style():
@@ -106,6 +118,11 @@ def test_matplotlib_manifest_separates_requested_from_effective_3d_style():
     assert parameters["requested_render_style"]["surface_subdivision"] == 2
     assert parameters["requested_render_style"]["compose_annotations"] is False
     assert "surface_subdivision" in parameters["ignored_render_options"]
+    assert "scalar_range" not in parameters["ignored_render_options"]
+    assert "radius_mode" not in parameters["ignored_render_options"]
+    assert "show_edges" not in parameters["ignored_render_options"]
+    assert parameters["radius_mode"] == "physical"
+    assert parameters["show_edges"] is False
 
 
 def test_pyvista_clim_and_composite_colorbar_share_centered_diverging_limits(monkeypatch):
@@ -161,6 +178,33 @@ def test_pyvista_clim_and_composite_colorbar_share_centered_diverging_limits(mon
     assert (normalizer.vmin, normalizer.vmax) == pytest.approx((-2.0, 2.0))
 
 
+def test_locked_scalar_range_overrides_auto_color_limits():
+    surface = signed_surface()
+    locked = _normalizer(surface, "Blue-White-Red", scalar_range=(100.0, 300.0))
+
+    assert (locked.vmin, locked.vmax) == pytest.approx((100.0, 300.0))
+
+
+def test_normalizer_rejects_invalid_locked_scalar_range():
+    surface = signed_surface()
+
+    with pytest.raises(ValueError, match="scalar_range"):
+        _normalizer(surface, scalar_range=(300.0, 100.0))
+
+
+def test_normalized_radius_is_display_only_and_rejects_invalid_mode():
+    surface = signed_surface()
+    original = surface.values.copy()
+    options = Render3DOptions(radius_mode="normalized", radius_scale=0.8)
+    x, y, z = _display_coordinates(surface, options)
+    max_radius = float(np.max(np.sqrt(x**2 + y**2 + z**2)))
+
+    assert np.array_equal(surface.values, original)
+    assert max_radius == pytest.approx(0.8)
+    with pytest.raises(ValueError, match="radius_mode"):
+        _display_coordinates(surface, replace(options, radius_mode="bogus"))  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize(
     ("property_name", "expected"),
     [
@@ -204,7 +248,16 @@ def test_render_surface_image_returns_nonblank_preview_or_clear_unavailable_mess
             render_surface_image(surface, options=Render3DOptions(window_size=(320, 260)))
         return
 
-    image = render_surface_image(surface, options=Render3DOptions(window_size=(320, 260)))
+    image = render_surface_image(
+        surface,
+        options=Render3DOptions(
+            window_size=(320, 260),
+            scalar_range=(100.0, 300.0),
+            radius_mode="normalized",
+            radius_scale=0.8,
+            show_edges=True,
+        ),
+    )
 
     assert image.ndim == 3
     assert image.shape[0] == 260

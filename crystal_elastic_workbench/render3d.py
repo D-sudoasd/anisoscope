@@ -7,6 +7,7 @@ import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,6 +43,20 @@ _PROPERTY_TITLES = {
 
 class PyVistaUnavailableError(RuntimeError):
     """Raised when the PyVista/VTK backend cannot be initialized."""
+
+
+MATPLOTLIB_HONORED_RENDER_KEYS = frozenset(
+    {
+        "palette",
+        "palette_category",
+        "scalar_range",
+        "show_edges",
+        "edge_color",
+        "edge_line_width",
+        "radius_mode",
+        "radius_scale",
+    }
+)
 
 
 def _surface_property_label(surface: DirectionalSurface) -> str:
@@ -93,6 +108,11 @@ class Render3DOptions:
     lighting_intensity: float = 1.0
     surface_smoothing: float = 0.0
     surface_subdivision: int = 1
+    scalar_range: tuple[float, float] | None = None
+    edge_color: str = "#404040"
+    edge_line_width: float = 0.4
+    radius_mode: Literal["physical", "normalized"] = "physical"
+    radius_scale: float = 1.0
     ambient: float = 0.28
     diffuse: float = 0.74
     specular: float = 0.32
@@ -114,7 +134,12 @@ def render3d_style_parameters(options: Render3DOptions) -> dict[str, object]:
         "lighting_intensity": options.lighting_intensity,
         "surface_smoothing": options.surface_smoothing,
         "surface_subdivision": options.surface_subdivision,
+        "scalar_range": options.scalar_range,
         "show_edges": options.show_edges,
+        "edge_color": options.edge_color,
+        "edge_line_width": options.edge_line_width,
+        "radius_mode": options.radius_mode,
+        "radius_scale": options.radius_scale,
         "ambient": options.ambient,
         "diffuse": options.diffuse,
         "specular": options.specular,
@@ -139,14 +164,12 @@ def render3d_manifest_style_parameters(
             "ignored_render_options": [],
         }
 
-    ignored = [
-        key
-        for key in requested
-        if key not in {"palette", "palette_category"}
-    ]
+    ignored = [key for key in requested if key not in MATPLOTLIB_HONORED_RENDER_KEYS]
+    effective = {
+        key: requested[key] for key in requested if key in MATPLOTLIB_HONORED_RENDER_KEYS
+    }
     return {
-        "palette": options.palette_name,
-        "palette_category": get_palette(options.palette_name).category,
+        **effective,
         "compose_annotations": True,
         "annotation_backend": "matplotlib",
         "requested_render_style": requested,
@@ -196,10 +219,81 @@ def _import_pyvista():
     return pv
 
 
+def _validated_scalar_range(scalar_range: tuple[float, float] | None) -> tuple[float, float] | None:
+    if scalar_range is None:
+        return None
+    try:
+        vmin, vmax = float(scalar_range[0]), float(scalar_range[1])
+    except (TypeError, ValueError, IndexError) as exc:
+        raise ValueError("scalar_range must contain finite values with vmax > vmin.") from exc
+    if not np.isfinite(vmin) or not np.isfinite(vmax) or vmax <= vmin:
+        raise ValueError("scalar_range must contain finite values with vmax > vmin.")
+    return vmin, vmax
+
+
+def _validated_radius_scale(radius_scale: float) -> float:
+    scale = float(radius_scale)
+    if not np.isfinite(scale) or scale <= 0.0:
+        raise ValueError("radius_scale must be a positive finite value.")
+    return scale
+
+
+def _resolved_color_limits(
+    surface: DirectionalSurface,
+    options: Render3DOptions,
+    *,
+    colormap_name: str | None = None,
+) -> tuple[float, float]:
+    locked = _validated_scalar_range(options.scalar_range)
+    if locked is not None:
+        return locked
+    return surface_color_limits(
+        surface.values,
+        options.palette_name,
+        colormap_name=colormap_name,
+    )
+
+
+def _display_coordinates(
+    surface: DirectionalSurface,
+    options: Render3DOptions,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    scale = _validated_radius_scale(options.radius_scale)
+    if options.radius_mode == "physical":
+        return surface.x * scale, surface.y * scale, surface.z * scale
+    if options.radius_mode == "normalized":
+        values = np.asarray(surface.values, dtype=float)
+        max_value = float(np.nanmax(np.abs(values)))
+        radius = np.ones_like(values) if max_value <= 1e-14 else np.abs(values) / max_value
+        radius = radius * scale
+        return (
+            surface.directions[..., 0] * radius,
+            surface.directions[..., 1] * radius,
+            surface.directions[..., 2] * radius,
+        )
+    raise ValueError("radius_mode must be 'physical' or 'normalized'.")
+
+
+def _map_direction_to_display(
+    direction: np.ndarray,
+    value: float,
+    surface: DirectionalSurface,
+    options: Render3DOptions,
+) -> np.ndarray:
+    scale = _validated_radius_scale(options.radius_scale)
+    vector = np.asarray(direction, dtype=float)
+    if options.radius_mode == "physical":
+        return vector * float(value) * scale
+    if options.radius_mode == "normalized":
+        values = np.asarray(surface.values, dtype=float)
+        max_value = float(np.nanmax(np.abs(values)))
+        radius = scale if max_value <= 1e-14 else abs(float(value)) / max_value * scale
+        return vector * radius
+    raise ValueError("radius_mode must be 'physical' or 'normalized'.")
+
+
 def _surface_mesh(pv, surface: DirectionalSurface, options: Render3DOptions):
-    x = surface.x
-    y = surface.y
-    z = surface.z
+    x, y, z = _display_coordinates(surface, options)
     values = surface.values
     if x.shape[1] > 1 and np.allclose(x[:, 0], x[:, -1]) and np.allclose(y[:, 0], y[:, -1]):
         x = x[:, :-1]
@@ -264,8 +358,16 @@ def _add_three_point_lighting(pv, plotter, options: Render3DOptions) -> None:
         plotter.enable_lightkit()
 
 
-def _camera_for(surface: DirectionalSurface, *, azimuth_deg: float, elevation_deg: float, axis: str = "z"):
-    coords = np.column_stack([surface.x.ravel(), surface.y.ravel(), surface.z.ravel()])
+def _camera_for(
+    surface: DirectionalSurface,
+    options: Render3DOptions,
+    *,
+    azimuth_deg: float,
+    elevation_deg: float,
+    axis: str = "z",
+):
+    x, y, z = _display_coordinates(surface, options)
+    coords = np.column_stack([x.ravel(), y.ravel(), z.ravel()])
     center = coords.mean(axis=0)
     radius = max(float(np.linalg.norm(coords - center, axis=1).max()), 1.0) * 3.0
     azimuth = math.radians(azimuth_deg)
@@ -319,15 +421,15 @@ def _build_plotter(
         plotter.enable_parallel_projection()
     _add_three_point_lighting(pv, plotter, options)
     mesh = _surface_mesh(pv, surface, options)
-    clim = surface_color_limits(surface.values, options.palette_name)
+    clim = _resolved_color_limits(surface, options)
     mesh_kwargs = {
         "scalars": "value",
         "cmap": palette_colormap(options.palette_name),
         "clim": clim,
         "smooth_shading": options.smooth_shading,
         "show_edges": options.show_edges,
-        "edge_color": "#404040",
-        "line_width": 0.4,
+        "edge_color": options.edge_color,
+        "line_width": max(0.0, float(options.edge_line_width)),
         "ambient": max(0.0, min(float(options.ambient), 1.0)),
         "diffuse": max(0.0, min(float(options.diffuse), 1.0)),
         "specular": max(0.0, min(float(options.specular), 1.0)),
@@ -341,14 +443,18 @@ def _build_plotter(
         **mesh_kwargs,
     )
     plotter.add_points(
-        np.asarray([surface.min_value * surface.min_direction]),
+        np.asarray(
+            [_map_direction_to_display(surface.min_direction, surface.min_value, surface, options)]
+        ),
         color="#d33f49",
         point_size=12,
         render_points_as_spheres=True,
         label="Sampled-grid min",
     )
     plotter.add_points(
-        np.asarray([surface.max_value * surface.max_direction]),
+        np.asarray(
+            [_map_direction_to_display(surface.max_direction, surface.max_value, surface, options)]
+        ),
         color="#2a9d8f",
         point_size=12,
         render_points_as_spheres=True,
@@ -363,14 +469,21 @@ def _build_plotter(
         )
         plotter.add_axes(line_width=1, labels_off=False)
         plotter.add_legend()
-    plotter.camera_position = _camera_for(surface, azimuth_deg=azimuth, elevation_deg=elevation)
+    plotter.camera_position = _camera_for(surface, options, azimuth_deg=azimuth, elevation_deg=elevation)
     if options.parallel_projection:
         plotter.camera.parallel_projection = True
     plotter.reset_camera()
     return plotter
 
 
-def _normalizer(surface: DirectionalSurface, palette_name: str = DEFAULT_3D_PALETTE_NAME):
+def _normalizer(
+    surface: DirectionalSurface,
+    palette_name: str = DEFAULT_3D_PALETTE_NAME,
+    scalar_range: tuple[float, float] | None = None,
+):
+    locked = _validated_scalar_range(scalar_range)
+    if locked is not None:
+        return colors.Normalize(vmin=locked[0], vmax=locked[1])
     vmin, vmax = surface_color_limits(surface.values, palette_name)
     return colors.Normalize(vmin=vmin, vmax=vmax)
 
@@ -415,7 +528,7 @@ def _compose_surface_annotations(image: np.ndarray, surface: DirectionalSurface,
         )
         cbar_ax = fig.add_axes([0.825, 0.245, 0.028, 0.50])
         mappable = ScalarMappable(
-            norm=_normalizer(surface, options.palette_name),
+            norm=_normalizer(surface, options.palette_name, options.scalar_range),
             cmap=palette_colormap(options.palette_name),
         )
         mappable.set_array(surface.values)
@@ -520,7 +633,9 @@ def render_surface_gif(
         plotter.open_gif(str(output), fps=fps)
         for frame_index in range(frames):
             azimuth = 360.0 * frame_index / frames
-            plotter.camera_position = _camera_for(surface, azimuth_deg=azimuth, elevation_deg=elevation, axis=axis)
+            plotter.camera_position = _camera_for(
+                surface, opts, azimuth_deg=azimuth, elevation_deg=elevation, axis=axis
+            )
             plotter.write_frame()
     finally:
         plotter.close()
@@ -554,7 +669,9 @@ def render_surface_mp4(
         plotter.open_movie(str(output), framerate=fps)
         for frame_index in range(frames):
             azimuth = 360.0 * frame_index / frames
-            plotter.camera_position = _camera_for(surface, azimuth_deg=azimuth, elevation_deg=elevation, axis=axis)
+            plotter.camera_position = _camera_for(
+                surface, opts, azimuth_deg=azimuth, elevation_deg=elevation, axis=axis
+            )
             plotter.write_frame()
     finally:
         plotter.close()

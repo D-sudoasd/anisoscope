@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 import shutil
 import tempfile
 
@@ -15,6 +16,7 @@ from crystal_elastic_workbench.exporting import (
     write_export_manifest,
 )
 from crystal_elastic_workbench.plot_styles import DEFAULT_3D_PALETTE_NAME, get_palette
+from crystal_elastic_workbench.render3d import MATPLOTLIB_HONORED_RENDER_KEYS
 from crystal_elastic_workbench.sampling import DirectionalSurface
 from crystal_elastic_workbench.visualization import (
     export_rotating_gif,
@@ -34,6 +36,11 @@ class AnimationExportOptions:
     surface_smoothing: float = 0.0
     surface_subdivision: int = 1
     show_edges: bool = False
+    scalar_range: tuple[float, float] | None = None
+    edge_color: str = "#404040"
+    edge_line_width: float = 0.4
+    radius_mode: Literal["physical", "normalized"] = "physical"
+    radius_scale: float = 1.0
     title_font_size: int = 18
     label_font_size: int = 12
     colorbar_title_size: int = 12
@@ -62,7 +69,12 @@ def _render_style_parameters(
         "lighting_intensity": options.lighting_intensity,
         "surface_smoothing": options.surface_smoothing,
         "surface_subdivision": options.surface_subdivision,
+        "scalar_range": options.scalar_range,
         "show_edges": options.show_edges,
+        "edge_color": options.edge_color,
+        "edge_line_width": options.edge_line_width,
+        "radius_mode": options.radius_mode,
+        "radius_scale": options.radius_scale,
         "ambient": options.ambient,
         "diffuse": options.diffuse,
         "specular": options.specular,
@@ -77,11 +89,18 @@ def _render_style_parameters(
         parameters.update(requested)
         parameters["ignored_render_options"] = []
     else:
+        ignored = [key for key in requested if key not in MATPLOTLIB_HONORED_RENDER_KEYS]
+        effective = {
+            key: requested[key]
+            for key in requested
+            if key in MATPLOTLIB_HONORED_RENDER_KEYS
+        }
         parameters.update(
             {
                 "compose_annotations": True,
                 "annotation_backend": "matplotlib",
-                "ignored_render_options": list(requested),
+                **effective,
+                "ignored_render_options": ignored,
             }
         )
     if fallback_reason is not None:
@@ -148,6 +167,11 @@ def _render_kwargs(options: AnimationExportOptions, *, fps: int) -> dict[str, ob
         "surface_smoothing": options.surface_smoothing,
         "surface_subdivision": options.surface_subdivision,
         "show_edges": options.show_edges,
+        "edge_color": options.edge_color,
+        "edge_line_width": options.edge_line_width,
+        "value_range": options.scalar_range,
+        "radius_mode": options.radius_mode,
+        "radius_scale": options.radius_scale,
         "title_font_size": options.title_font_size,
         "label_font_size": options.label_font_size,
         "colorbar_title_size": options.colorbar_title_size,

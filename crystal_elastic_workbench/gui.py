@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QGridLayout,
@@ -648,7 +649,29 @@ class MainWindow(QMainWindow):
         self.surface_smoothing_spin.setRange(0, 100)
         self.surface_smoothing_spin.setSuffix("%")
         self.surface_smoothing_spin.setValue(0)
-        self.show_edges_checkbox = QCheckBox("Edges")
+        self.show_edges_checkbox = QCheckBox("Subtle edges")
+        self.show_edges_checkbox.setToolTip(
+            "Add a weak surface mesh so curvature and lobes remain readable."
+        )
+        self.lock_color_range_checkbox = QCheckBox("Color range")
+        self.lock_color_range_checkbox.setToolTip(
+            "Lock colorbar vmin/vmax when comparing materials or Cij matrices."
+        )
+        self.color_vmin_spin = QDoubleSpinBox()
+        self.color_vmax_spin = QDoubleSpinBox()
+        for spin in (self.color_vmin_spin, self.color_vmax_spin):
+            spin.setRange(-1e9, 1e9)
+            spin.setDecimals(4)
+            spin.setSingleStep(1.0)
+            spin.setEnabled(False)
+        self.color_vmin_spin.setValue(0.0)
+        self.color_vmax_spin.setValue(1.0)
+        self.radius_mode_combo = QComboBox()
+        self.radius_mode_combo.addItems(["Physical", "Normalized shape"])
+        self.radius_mode_combo.setToolTip(
+            "Physical uses sampled values as radius. Normalized shape rescales "
+            "geometry only; values, colorbar, and data exports stay unchanged."
+        )
         self.render3d_status_label = QLabel()
         self._refresh_render3d_status_label()
         self.surface_extrema_label = QLabel("Sampled-grid extrema: plot a surface to inspect the sampled range.")
@@ -696,9 +719,20 @@ class MainWindow(QMainWindow):
         animation_row.addWidget(self.gif_button)
         animation_row.addWidget(self.mp4_button)
         animation_row.addStretch()
+        comparison_row = QHBoxLayout()
+        comparison_row.setSpacing(4)
+        comparison_row.addWidget(self.lock_color_range_checkbox)
+        comparison_row.addWidget(QLabel("vmin"))
+        comparison_row.addWidget(self.color_vmin_spin)
+        comparison_row.addWidget(QLabel("vmax"))
+        comparison_row.addWidget(self.color_vmax_spin)
+        comparison_row.addWidget(QLabel("Radius"))
+        comparison_row.addWidget(self.radius_mode_combo)
+        comparison_row.addStretch()
         self.surface_pane = FigurePane()
         layout.addLayout(plot_row)
         layout.addLayout(animation_row)
+        layout.addLayout(comparison_row)
         layout.addWidget(self.render3d_status_label)
         layout.addWidget(self.surface_extrema_label)
         layout.addWidget(self.surface_pane, stretch=1)
@@ -775,6 +809,12 @@ class MainWindow(QMainWindow):
         self.lighting_spin.valueChanged.connect(self._on_surface_style_changed)
         self.surface_smoothing_spin.valueChanged.connect(self._on_surface_style_changed)
         self.show_edges_checkbox.toggled.connect(self._on_surface_style_changed)
+        self.lock_color_range_checkbox.toggled.connect(self.color_vmin_spin.setEnabled)
+        self.lock_color_range_checkbox.toggled.connect(self.color_vmax_spin.setEnabled)
+        self.lock_color_range_checkbox.toggled.connect(self._on_surface_style_changed)
+        self.color_vmin_spin.valueChanged.connect(self._on_locked_color_range_changed)
+        self.color_vmax_spin.valueChanged.connect(self._on_locked_color_range_changed)
+        self.radius_mode_combo.currentTextChanged.connect(self._on_surface_style_changed)
         self.export_dpi_spin.valueChanged.connect(self._on_style_changed)
         self.transparent_background_checkbox.toggled.connect(self._on_transparent_background_toggled)
         self._update_1d_control_visibility()
@@ -839,6 +879,11 @@ class MainWindow(QMainWindow):
             self.surface_pane.clear()
         self._mark_figures_incomplete()
         self._sync_action_enabled()
+
+    def _on_locked_color_range_changed(self, *_args) -> None:
+        if not self.lock_color_range_checkbox.isChecked():
+            return
+        self._on_surface_style_changed()
 
     def _on_transparent_background_toggled(self, *_args) -> None:
         self._on_style_changed()
@@ -1275,6 +1320,9 @@ class MainWindow(QMainWindow):
                             surface,
                             theme_name=self.theme_combo.currentText(),
                             palette_name=self.cmap_combo.currentText(),
+                            value_range=self._selected_scalar_range(),
+                            show_edges=self.show_edges_checkbox.isChecked(),
+                            radius_mode=self._selected_radius_mode(),
                         )
                     )
                 except Exception as fallback_exc:
@@ -1481,6 +1529,8 @@ class MainWindow(QMainWindow):
                 lighting_intensity=self.lighting_spin.value() / 100.0,
                 surface_smoothing=self.surface_smoothing_spin.value() / 100.0,
                 show_edges=self.show_edges_checkbox.isChecked(),
+                scalar_range=self._selected_scalar_range(),
+                radius_mode=self._selected_radius_mode(),
                 render3d_options=self._render3d_options(),
             ),
         )
@@ -1524,6 +1574,8 @@ class MainWindow(QMainWindow):
                     lighting_intensity=self.lighting_spin.value() / 100.0,
                     surface_smoothing=self.surface_smoothing_spin.value() / 100.0,
                     show_edges=self.show_edges_checkbox.isChecked(),
+                    scalar_range=self._selected_scalar_range(),
+                    radius_mode=self._selected_radius_mode(),
                 ),
             )
             QMessageBox.information(self, "GIF export complete", f"Animation written:\n{path}")
@@ -1551,6 +1603,8 @@ class MainWindow(QMainWindow):
                     lighting_intensity=self.lighting_spin.value() / 100.0,
                     surface_smoothing=self.surface_smoothing_spin.value() / 100.0,
                     show_edges=self.show_edges_checkbox.isChecked(),
+                    scalar_range=self._selected_scalar_range(),
+                    radius_mode=self._selected_radius_mode(),
                 ),
             )
             QMessageBox.information(self, "MP4 export complete", f"Animation written:\n{path}")
@@ -1597,10 +1651,26 @@ class MainWindow(QMainWindow):
             "lighting_intensity": self.lighting_spin.value() / 100.0,
             "surface_smoothing": self.surface_smoothing_spin.value() / 100.0,
             "show_edges": self.show_edges_checkbox.isChecked(),
+            "scalar_range": self._selected_scalar_range(),
+            "radius_mode": self._selected_radius_mode(),
         }
         if window_size is not None:
             kwargs["window_size"] = window_size
         return Render3DOptions(**kwargs)
+
+    def _selected_scalar_range(self) -> tuple[float, float] | None:
+        if not self.lock_color_range_checkbox.isChecked():
+            return None
+        vmin = float(self.color_vmin_spin.value())
+        vmax = float(self.color_vmax_spin.value())
+        if vmax <= vmin:
+            raise ValueError("Color range requires vmax > vmin.")
+        return vmin, vmax
+
+    def _selected_radius_mode(self) -> str:
+        if self.radius_mode_combo.currentText() == "Normalized shape":
+            return "normalized"
+        return "physical"
 
     def save_surface_figure(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
@@ -1626,6 +1696,8 @@ class MainWindow(QMainWindow):
                     lighting_intensity=self.lighting_spin.value() / 100.0,
                     surface_smoothing=self.surface_smoothing_spin.value() / 100.0,
                     show_edges=self.show_edges_checkbox.isChecked(),
+                    scalar_range=self._selected_scalar_range(),
+                    radius_mode=self._selected_radius_mode(),
                     render3d_options=self._render3d_options(),
                 ),
             )

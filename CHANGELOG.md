@@ -8,6 +8,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- 3D comparison controls: a lockable colorbar range, physical vs normalized-shape
+  radius, and configurable edge color/width. Normalized radius is display-only
+  and does not change sampled values, colorbar numbers, or data exports.
 - JOSS manuscript sources and reproducible paper figures.
 - User, API, contribution, security, citation, and community documentation.
 - MIT license and CFF citation metadata.

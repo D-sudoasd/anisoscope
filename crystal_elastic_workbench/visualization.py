@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,6 +26,9 @@ from crystal_elastic_workbench.plot_styles import (
 from crystal_elastic_workbench.render3d import (
     PyVistaUnavailableError,
     Render3DOptions,
+    _display_coordinates,
+    _map_direction_to_display,
+    _validated_scalar_range,
     normalize_rotation_axis,
     render_surface_gif,
     render_surface_mp4,
@@ -164,24 +168,46 @@ def plot_directional_surface(
     alpha: float = 0.92,
     elev: float = 25.0,
     azim: float = 35.0,
+    value_range: tuple[float, float] | None = None,
+    show_edges: bool = False,
+    edge_stride: int = 8,
+    edge_color: str = "#404040",
+    edge_line_width: float = 0.4,
+    radius_mode: Literal["physical", "normalized"] = "physical",
+    radius_scale: float = 1.0,
 ):
     theme = get_theme(theme_name)
     with plt.rc_context(matplotlib_rc_params(theme)):
         fig = plt.figure(figsize=theme.figure_size_3d, constrained_layout=True, dpi=theme.figure_dpi)
         ax = fig.add_subplot(111, projection="3d")
     cmap_obj = plt.get_cmap(cmap) if cmap else palette_colormap(palette_name)
-    vmin, vmax = surface_color_limits(
-        surface.values,
-        palette_name,
-        colormap_name=cmap,
+    render_options = Render3DOptions(
+        theme_name=theme_name,
+        palette_name=palette_name,
+        scalar_range=_validated_scalar_range(value_range),
+        show_edges=show_edges,
+        edge_color=edge_color,
+        edge_line_width=edge_line_width,
+        radius_mode=radius_mode,
+        radius_scale=radius_scale,
     )
+    locked_range = render_options.scalar_range
+    if locked_range is None:
+        vmin, vmax = surface_color_limits(
+            surface.values,
+            palette_name,
+            colormap_name=cmap,
+        )
+    else:
+        vmin, vmax = locked_range
     norm = colors.Normalize(vmin=vmin, vmax=vmax)
+    x, y, z = _display_coordinates(surface, render_options)
     facecolors = cmap_obj(norm(surface.values))
     facecolors[..., -1] = alpha
     ax.plot_surface(
-        surface.x,
-        surface.y,
-        surface.z,
+        x,
+        y,
+        z,
         facecolors=facecolors,
         linewidth=0.0,
         edgecolor="none",
@@ -190,19 +216,37 @@ def plot_directional_surface(
         rstride=1,
         cstride=1,
     )
+    if show_edges:
+        stride = max(1, int(edge_stride))
+        ax.plot_wireframe(
+            x,
+            y,
+            z,
+            rstride=stride,
+            cstride=stride,
+            color=edge_color,
+            linewidth=max(0.0, float(edge_line_width)),
+            alpha=0.35,
+        )
+    min_point = _map_direction_to_display(
+        surface.min_direction, surface.min_value, surface, render_options
+    )
+    max_point = _map_direction_to_display(
+        surface.max_direction, surface.max_value, surface, render_options
+    )
     ax.scatter(
-        [surface.min_value * surface.min_direction[0]],
-        [surface.min_value * surface.min_direction[1]],
-        [surface.min_value * surface.min_direction[2]],
+        [min_point[0]],
+        [min_point[1]],
+        [min_point[2]],
         color="#d33f49",
         s=20,
         depthshade=False,
         label="Sampled-grid min",
     )
     ax.scatter(
-        [surface.max_value * surface.max_direction[0]],
-        [surface.max_value * surface.max_direction[1]],
-        [surface.max_value * surface.max_direction[2]],
+        [max_point[0]],
+        [max_point[1]],
+        [max_point[2]],
         color="#2a9d8f",
         s=20,
         depthshade=False,
@@ -238,7 +282,7 @@ def plot_directional_surface(
         fontsize=max(6.5, theme.tick_size - 1),
         color=theme.text_color,
     )
-    _set_equal_3d_axes(ax, surface.x, surface.y, surface.z)
+    _set_equal_3d_axes(ax, x, y, z)
     ax.view_init(elev=elev, azim=azim)
     try:
         ax.set_proj_type("ortho")
@@ -294,10 +338,15 @@ def export_rotating_gif(
     surface_smoothing: float = 0.0,
     surface_subdivision: int = 1,
     show_edges: bool = False,
+    edge_color: str = "#404040",
+    edge_line_width: float = 0.4,
     title_font_size: int = 18,
     label_font_size: int = 12,
     colorbar_title_size: int = 12,
     colorbar_tick_size: int = 10,
+    value_range: tuple[float, float] | None = None,
+    radius_mode: Literal["physical", "normalized"] = "physical",
+    radius_scale: float = 1.0,
     ambient: float = 0.28,
     diffuse: float = 0.74,
     specular: float = 0.32,
@@ -331,6 +380,11 @@ def export_rotating_gif(
                     surface_smoothing=surface_smoothing,
                     surface_subdivision=surface_subdivision,
                     show_edges=show_edges,
+                    edge_color=edge_color,
+                    edge_line_width=edge_line_width,
+                    scalar_range=value_range,
+                    radius_mode=radius_mode,
+                    radius_scale=radius_scale,
                     compose_annotations=False,
                     title_font_size=title_font_size,
                     label_font_size=label_font_size,
@@ -349,7 +403,20 @@ def export_rotating_gif(
             if backend_key == "pyvista":
                 raise
 
-    fig = plot_directional_surface(surface, cmap=cmap, theme_name=theme_name, palette_name=palette_name, elev=elev, azim=0.0)
+    fig = plot_directional_surface(
+        surface,
+        cmap=cmap,
+        theme_name=theme_name,
+        palette_name=palette_name,
+        elev=elev,
+        azim=0.0,
+        value_range=value_range,
+        show_edges=show_edges,
+        edge_color=edge_color,
+        edge_line_width=edge_line_width,
+        radius_mode=radius_mode,
+        radius_scale=radius_scale,
+    )
     ax = fig.axes[0]
 
     def update(frame_index: int):
@@ -388,10 +455,15 @@ def export_rotating_mp4(
     surface_smoothing: float = 0.0,
     surface_subdivision: int = 1,
     show_edges: bool = False,
+    edge_color: str = "#404040",
+    edge_line_width: float = 0.4,
     title_font_size: int = 18,
     label_font_size: int = 12,
     colorbar_title_size: int = 12,
     colorbar_tick_size: int = 10,
+    value_range: tuple[float, float] | None = None,
+    radius_mode: Literal["physical", "normalized"] = "physical",
+    radius_scale: float = 1.0,
     ambient: float = 0.28,
     diffuse: float = 0.74,
     specular: float = 0.32,
@@ -423,6 +495,11 @@ def export_rotating_mp4(
                     surface_smoothing=surface_smoothing,
                     surface_subdivision=surface_subdivision,
                     show_edges=show_edges,
+                    edge_color=edge_color,
+                    edge_line_width=edge_line_width,
+                    scalar_range=value_range,
+                    radius_mode=radius_mode,
+                    radius_scale=radius_scale,
                     compose_annotations=False,
                     title_font_size=title_font_size,
                     label_font_size=label_font_size,
@@ -441,7 +518,20 @@ def export_rotating_mp4(
             if backend_key == "pyvista":
                 raise
 
-    fig = plot_directional_surface(surface, cmap=cmap, theme_name=theme_name, palette_name=palette_name, elev=elev, azim=0.0)
+    fig = plot_directional_surface(
+        surface,
+        cmap=cmap,
+        theme_name=theme_name,
+        palette_name=palette_name,
+        elev=elev,
+        azim=0.0,
+        value_range=value_range,
+        show_edges=show_edges,
+        edge_color=edge_color,
+        edge_line_width=edge_line_width,
+        radius_mode=radius_mode,
+        radius_scale=radius_scale,
+    )
     ax = fig.axes[0]
 
     def update(frame_index: int):

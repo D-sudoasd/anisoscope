@@ -62,6 +62,9 @@ def test_gif_animation_export_writes_manifest_and_forwards_scientific_style_opti
             surface_smoothing=0.25,
             surface_subdivision=2,
             show_edges=True,
+            scalar_range=(100.0, 300.0),
+            radius_mode="normalized",
+            radius_scale=0.9,
             specular=0.4,
         ),
     )
@@ -73,6 +76,9 @@ def test_gif_animation_export_writes_manifest_and_forwards_scientific_style_opti
     assert seen["kwargs"]["axis"] == "x"
     assert seen["kwargs"]["transparent_background"] is True
     assert seen["kwargs"]["surface_subdivision"] == 2
+    assert seen["kwargs"]["value_range"] == (100.0, 300.0)
+    assert seen["kwargs"]["radius_mode"] == "normalized"
+    assert seen["kwargs"]["radius_scale"] == 0.9
     assert seen["kwargs"]["specular"] == 0.4
     assert output.read_bytes() == b"gif bytes"
     manifest = json.loads(
@@ -99,7 +105,13 @@ def test_gif_animation_export_writes_manifest_and_forwards_scientific_style_opti
     assert manifest["parameters"]["requested_render_style"]["title_font_size"] == 18
     assert manifest["parameters"]["requested_render_style"]["surface_subdivision"] == 2
     assert manifest["parameters"]["requested_render_style"]["show_edges"] is True
+    assert manifest["parameters"]["requested_render_style"]["scalar_range"] == [100.0, 300.0]
+    assert manifest["parameters"]["requested_render_style"]["radius_mode"] == "normalized"
     assert manifest["parameters"]["requested_render_style"]["specular"] == 0.4
+    assert manifest["parameters"]["scalar_range"] == [100.0, 300.0]
+    assert manifest["parameters"]["radius_mode"] == "normalized"
+    assert "show_edges" not in manifest["parameters"]["ignored_render_options"]
+    assert "scalar_range" not in manifest["parameters"]["ignored_render_options"]
     assert "lighting_intensity" in manifest["parameters"]["ignored_render_options"]
     assert "surface_subdivision" in manifest["parameters"]["ignored_render_options"]
     assert manifest["parameters"]["transparent_background"] is True
@@ -155,6 +167,9 @@ def test_mp4_animation_export_writes_manifest_without_requiring_ffmpeg(
     assert manifest["parameters"]["title_font_size"] == 18
     assert manifest["parameters"]["colorbar_tick_size"] == 10
     assert manifest["parameters"]["surface_subdivision"] == 1
+    assert manifest["parameters"]["scalar_range"] is None
+    assert manifest["parameters"]["radius_mode"] == "physical"
+    assert manifest["parameters"]["radius_scale"] == 1.0
     assert manifest["parameters"]["specular"] == 0.32
     assert manifest["parameters"]["ignored_render_options"] == []
     assert manifest["parameters"]["requested_render_style"]["specular"] == 0.32

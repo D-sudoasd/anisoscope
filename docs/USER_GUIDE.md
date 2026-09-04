@@ -90,6 +90,10 @@ The 3D tab and rendered surface annotate the minimum and maximum found on the
 current sampled grid, their directions, and the grid dimensions. These are
 sampled-grid extrema, not a claim of continuous global extrema; refine
 `theta`/`phi` and check convergence before reporting them as material values.
+`Color range` locks colorbar limits for comparison across materials; leave it
+unchecked to auto-scale, including zero-centered diverging palettes.
+`Radius` `Physical` maps sampled values to radius; `Normalized shape` rescales
+only the displayed geometry and does not change exported numerical values.
 
 ## 6. Export results
 
@@ -107,9 +111,9 @@ corresponding output. A transparent background is applied to static figures
 and to GIF export through Matplotlib; MP4 export does not support
 transparency. Animation manifests record the actual backend, frame rate, and
 fallback reason when PyVista is unavailable. Changing a theme, palette,
-lighting, smoothing, edge, DPI, or transparency setting clears any affected
-stale preview; sampled data remain available, and **Plot** regenerates a figure
-before it can be saved.
+lighting, smoothing, edge, color range, radius mode, DPI, or transparency
+setting clears any affected stale preview; sampled data remain available, and
+**Plot** regenerates a figure before it can be saved.
 When a Matplotlib fallback is used, the sidecar separates the requested 3D
 render style from the options that the fallback actually applied. Unsupported
 PyVista-only settings are listed under `ignored_render_options` instead of being

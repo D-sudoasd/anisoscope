@@ -165,6 +165,11 @@ def test_main_window_exposes_publication_plot_controls(qtbot=None):
     assert window.lighting_spin.value() == 100
     assert window.surface_smoothing_spin.value() == 0
     assert window.show_edges_checkbox.isChecked() is False
+    assert window.show_edges_checkbox.text() == "Subtle edges"
+    assert window.lock_color_range_checkbox.isChecked() is False
+    assert window.color_vmin_spin.isEnabled() is False
+    assert window.color_vmax_spin.isEnabled() is False
+    assert window.radius_mode_combo.currentText() == "Physical"
     assert window.cmap_combo.currentText() == "Nature Surface"
     assert window.cmap_combo.itemText(0) == "Nature Surface"
     assert window.cmap_combo.findText("Blue-White-Red") >= 0
@@ -690,6 +695,10 @@ def test_gui_mp4_export_forwards_surface_style_options(tmp_path, monkeypatch, qt
     window.lighting_spin.setValue(77)
     window.surface_smoothing_spin.setValue(35)
     window.show_edges_checkbox.setChecked(True)
+    window.lock_color_range_checkbox.setChecked(True)
+    window.color_vmin_spin.setValue(100.0)
+    window.color_vmax_spin.setValue(300.0)
+    window.radius_mode_combo.setCurrentText("Normalized shape")
     palette_index = window.cmap_combo.findText("Blue-Gold")
     assert palette_index >= 0
     window.cmap_combo.setCurrentIndex(palette_index)
@@ -720,6 +729,34 @@ def test_gui_mp4_export_forwards_surface_style_options(tmp_path, monkeypatch, qt
     assert seen["options"].lighting_intensity == pytest.approx(0.77)
     assert seen["options"].surface_smoothing == pytest.approx(0.35)
     assert seen["options"].show_edges is True
+    assert seen["options"].scalar_range == (100.0, 300.0)
+    assert seen["options"].radius_mode == "normalized"
+
+    window.close()
+    app.processEvents()
+
+
+def test_render3d_options_forward_locked_range_and_radius_mode(qtbot=None):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from crystal_elastic_workbench.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+
+    window.lock_color_range_checkbox.setChecked(True)
+    window.color_vmin_spin.setValue(100.0)
+    window.color_vmax_spin.setValue(300.0)
+    window.radius_mode_combo.setCurrentText("Normalized shape")
+    options = window._render3d_options()
+
+    assert window.color_vmin_spin.isEnabled() is True
+    assert window.color_vmax_spin.isEnabled() is True
+    assert options.scalar_range == (100.0, 300.0)
+    assert options.radius_mode == "normalized"
+    assert options.radius_scale == 1.0
+    assert options.ambient == pytest.approx(0.28)
 
     window.close()
     app.processEvents()

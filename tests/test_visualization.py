@@ -59,6 +59,27 @@ def signed_surface() -> DirectionalSurface:
     )
 
 
+def test_directional_surface_supports_locked_range_edges_and_normalized_radius(tmp_path):
+    tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
+    surface = sample_sphere(tensor, property_name="young", theta_count=7, phi_count=13)
+    original_values = surface.values.copy()
+
+    fig = plot_directional_surface(
+        surface,
+        value_range=(100.0, 300.0),
+        show_edges=True,
+        edge_stride=3,
+        radius_mode="normalized",
+        radius_scale=0.75,
+    )
+    output = tmp_path / "normalized_surface.png"
+    fig.savefig(output, dpi=120)
+
+    assert np.array_equal(surface.values, original_values)
+    assert fig.axes[-1].get_ylim() == pytest.approx((100.0, 300.0))
+    assert output.stat().st_size > 1000
+
+
 def test_plot_exports_static_png_files(tmp_path):
     tensor = ElasticTensor(isotropic_cubic_matrix(), crystal_system="cubic")
     plane = sample_plane(tensor, property_name="young", plane="xy", angle_count=37)
@@ -195,12 +216,27 @@ def test_export_rotating_mp4_prefers_pyvista_backend(tmp_path, monkeypatch):
     monkeypatch.setattr("crystal_elastic_workbench.visualization.render_surface_mp4", fake_render)
     mp4_path = tmp_path / "rotation.mp4"
 
-    export_rotating_mp4(surface, mp4_path, frames=7, dpi=80, surface_subdivision=2, specular=0.4)
+    export_rotating_mp4(
+        surface,
+        mp4_path,
+        frames=7,
+        dpi=80,
+        surface_subdivision=2,
+        specular=0.4,
+        value_range=(100.0, 300.0),
+        radius_mode="normalized",
+        radius_scale=0.9,
+        show_edges=True,
+    )
 
     assert seen["surface"] is surface
     assert seen["kwargs"]["frames"] == 7
     assert seen["kwargs"]["options"].surface_subdivision == 2
     assert seen["kwargs"]["options"].specular == 0.4
+    assert seen["kwargs"]["options"].scalar_range == (100.0, 300.0)
+    assert seen["kwargs"]["options"].radius_mode == "normalized"
+    assert seen["kwargs"]["options"].radius_scale == 0.9
+    assert seen["kwargs"]["options"].show_edges is True
     assert mp4_path.read_bytes() == b"mp4 bytes"
 
 

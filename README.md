@@ -216,6 +216,18 @@ Each 3D view marks and reports the minimum and maximum found on the sampled
 direction grid. Refine the angular grid to check convergence; these annotations
 do not assert continuous global extrema.
 
+The 3D tab includes comparison controls:
+
+- `Subtle edges` adds a weak surface mesh so curvature and lobes stay readable
+  without dominating the scalar color field.
+- `Color range` locks the colorbar `vmin`/`vmax`. Use this when comparing
+  materials or `Cij` matrices; otherwise each plot auto-scales, including
+  zero-centered limits for sign-changing diverging palettes.
+- `Radius = Physical` keeps the sampled property values as the displayed radius.
+  `Normalized shape` rescales geometry to emphasize anisotropy shape only. It
+  does not change `DirectionalSurface.values`, colorbar values, CSV/Excel
+  exports, or the physical values recorded in sidecar manifests.
+
 On a headless host where VTK cannot create a stable graphics context, set
 `ANISOSCOPE_DISABLE_PYVISTA=1` to force the Matplotlib fallback. The accepted
 true values are `1`, `true`, `yes`, and `on` (case-insensitive); unset the

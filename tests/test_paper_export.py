@@ -109,6 +109,9 @@ def test_export_paper_figures_writes_traceable_png_set(tmp_path):
             assert manifest["parameters"]["requested_render_style"]["diffuse"] == 0.74
             assert manifest["parameters"]["requested_render_style"]["specular"] == 0.32
             assert manifest["parameters"]["requested_render_style"]["specular_power"] == 28.0
+            assert manifest["parameters"]["requested_render_style"]["scalar_range"] is None
+            assert manifest["parameters"]["requested_render_style"]["radius_mode"] == "physical"
+            assert manifest["parameters"]["requested_render_style"]["edge_color"] == "#404040"
 
 
 def test_paper_surface_fallback_uses_render_options_palette_instead_of_stale_option(
@@ -138,6 +141,8 @@ def test_paper_surface_fallback_uses_render_options_palette_instead_of_stale_opt
     def capture_matplotlib_surface(surface_arg, **kwargs):
         seen["palette_name"] = kwargs.get("palette_name")
         seen["theme_name"] = kwargs.get("theme_name")
+        seen["value_range"] = kwargs.get("value_range")
+        seen["radius_mode"] = kwargs.get("radius_mode")
         return original_plot(surface_arg, **kwargs)
 
     monkeypatch.setattr(
@@ -162,12 +167,16 @@ def test_paper_surface_fallback_uses_render_options_palette_instead_of_stale_opt
                 theme_name="Gray Print",
                 palette_name="Blue-Gold",
                 compose_annotations=False,
+                scalar_range=(100.0, 300.0),
+                radius_mode="normalized",
             ),
         ),
     )
 
     assert seen["palette_name"] == "Blue-Gold"
     assert seen["theme_name"] == "Gray Print"
+    assert seen["value_range"] == (100.0, 300.0)
+    assert seen["radius_mode"] == "normalized"
     manifest = json.loads(
         exported["surface_png"]
         .with_name(f"{exported['surface_png'].name}.manifest.json")
@@ -182,6 +191,9 @@ def test_paper_surface_fallback_uses_render_options_palette_instead_of_stale_opt
     assert "lighting_intensity" not in manifest["parameters"]
     assert "lighting_intensity" in manifest["parameters"]["ignored_render_options"]
     assert manifest["parameters"]["requested_render_style"]["compose_annotations"] is False
+    assert manifest["parameters"]["scalar_range"] == [100.0, 300.0]
+    assert manifest["parameters"]["radius_mode"] == "normalized"
+    assert "scalar_range" not in manifest["parameters"]["ignored_render_options"]
 
 
 @pytest.mark.parametrize(

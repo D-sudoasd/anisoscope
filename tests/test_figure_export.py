@@ -30,6 +30,9 @@ def test_surface_figure_export_falls_back_to_matplotlib_and_records_manifest(tmp
 
     def capture_matplotlib_surface(surface_arg, **kwargs):
         seen["palette_name"] = kwargs.get("palette_name")
+        seen["value_range"] = kwargs.get("value_range")
+        seen["radius_mode"] = kwargs.get("radius_mode")
+        seen["show_edges"] = kwargs.get("show_edges")
         return original_plot(surface_arg, **kwargs)
 
     monkeypatch.setattr("crystal_elastic_workbench.figure_export.render_surface_png", fail_pyvista)
@@ -51,6 +54,9 @@ def test_surface_figure_export_falls_back_to_matplotlib_and_records_manifest(tmp
                 window_size=(320, 260),
                 theme_name="Gray Print",
                 transparent_background=True,
+                scalar_range=(100.0, 300.0),
+                radius_mode="normalized",
+                show_edges=True,
             ),
         ),
     )
@@ -58,6 +64,9 @@ def test_surface_figure_export_falls_back_to_matplotlib_and_records_manifest(tmp
     assert result.backend == "matplotlib"
     assert result.fallback_message == "forced unavailable"
     assert seen["palette_name"] == "Nature Surface"
+    assert seen["value_range"] == (100.0, 300.0)
+    assert seen["radius_mode"] == "normalized"
+    assert seen["show_edges"] is True
     assert result.path.stat().st_size > 1000
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["export_type"] == "3d_figure"
@@ -73,6 +82,9 @@ def test_surface_figure_export_falls_back_to_matplotlib_and_records_manifest(tmp
     assert "title_font_size" not in manifest["parameters"]
     assert "surface_subdivision" not in manifest["parameters"]
     assert "lighting_intensity" in manifest["parameters"]["ignored_render_options"]
+    assert "scalar_range" not in manifest["parameters"]["ignored_render_options"]
+    assert manifest["parameters"]["scalar_range"] == [100.0, 300.0]
+    assert manifest["parameters"]["radius_mode"] == "normalized"
     requested = manifest["parameters"]["requested_render_style"]
     assert requested["title_font_size"] == 18
     assert requested["colorbar_tick_size"] == 10

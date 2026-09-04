@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from matplotlib import pyplot as plt
 
@@ -29,6 +30,11 @@ class SurfaceFigureExportOptions:
     surface_smoothing: float = 0.0
     surface_subdivision: int = 1
     show_edges: bool = False
+    scalar_range: tuple[float, float] | None = None
+    edge_color: str = "#404040"
+    edge_line_width: float = 0.4
+    radius_mode: Literal["physical", "normalized"] = "physical"
+    radius_scale: float = 1.0
     ambient: float = 0.28
     diffuse: float = 0.74
     specular: float = 0.32
@@ -55,6 +61,11 @@ def _render_options(options: SurfaceFigureExportOptions) -> Render3DOptions:
         surface_smoothing=options.surface_smoothing,
         surface_subdivision=options.surface_subdivision,
         show_edges=options.show_edges,
+        scalar_range=options.scalar_range,
+        edge_color=options.edge_color,
+        edge_line_width=options.edge_line_width,
+        radius_mode=options.radius_mode,
+        radius_scale=options.radius_scale,
         ambient=options.ambient,
         diffuse=options.diffuse,
         specular=options.specular,
@@ -72,6 +83,12 @@ def _save_matplotlib_surface(
         surface,
         theme_name=render_options.theme_name,
         palette_name=render_options.palette_name,
+        value_range=render_options.scalar_range,
+        show_edges=render_options.show_edges,
+        edge_color=render_options.edge_color,
+        edge_line_width=render_options.edge_line_width,
+        radius_mode=render_options.radius_mode,
+        radius_scale=render_options.radius_scale,
     )
     try:
         fig.savefig(
