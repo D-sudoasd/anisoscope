@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use AnisoScope, please cite it using this metadata."
 type: software
-title: "AnisoScope"
+title: "AnisoScope | The Crystal Elasticity Atlas"
 version: "0.1.0"
 authors:
   - family-names: Gong
@@ -9,5 +9,5 @@ authors:
     orcid: "https://orcid.org/0000-0001-7877-7707"
     affiliation: "Institute of Metal Research, Chinese Academy of Sciences, Shenyang, China"
 license: MIT
-repository-code: "https://github.com/D-sudoasd/anisoscope"
-url: "https://github.com/D-sudoasd/anisoscope"
+repository-code: "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas"
+url: "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas"

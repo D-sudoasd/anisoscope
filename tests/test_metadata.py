@@ -17,5 +17,5 @@ def test_project_urls_use_the_canonical_repository():
     metadata = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     urls = metadata["project"]["urls"]
 
-    assert urls["Repository"] == "https://github.com/D-sudoasd/anisoscope"
-    assert urls["Issues"] == "https://github.com/D-sudoasd/anisoscope/issues"
+    assert urls["Repository"] == "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas"
+    assert urls["Issues"] == "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas/issues"

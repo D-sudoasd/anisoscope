@@ -1,14 +1,14 @@
-# AnisoScope
+# AnisoScope | The Crystal Elasticity Atlas
 
-**Directional elastic properties from a 6 × 6 stiffness matrix, with traceable exports.**
+**Explore directional elastic properties from stiffness tensors.**
 
-[![Tests](https://github.com/D-sudoasd/anisoscope/actions/workflows/tests.yml/badge.svg)](https://github.com/D-sudoasd/anisoscope/actions/workflows/tests.yml)
+[![Tests](https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas/actions/workflows/tests.yml/badge.svg)](https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas/actions/workflows/tests.yml)
 [![Python 3.11–3.13](https://img.shields.io/badge/Python-3.11--3.13-2F6678)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-B47B3C.svg)](LICENSE)
 [![Citation metadata](https://img.shields.io/badge/citation-CITATION.cff-68777D)](CITATION.cff)
 
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="AnisoScope: crystal elastic anisotropy from Cij.">
+  <img src="assets/readme/hero.svg" width="100%" alt="AnisoScope, The Crystal Elasticity Atlas: explore directional elastic properties from stiffness tensors.">
 </p>
 
 AnisoScope is a Python desktop application and numerical toolkit for inspecting
@@ -67,8 +67,8 @@ the complete GUI workflow.
 A virtual environment is recommended.
 
 ```powershell
-git clone https://github.com/D-sudoasd/anisoscope.git
-cd anisoscope
+git clone https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas.git
+cd anisoscope-crystal-elasticity-atlas
 python --version
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1

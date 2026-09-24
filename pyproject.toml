@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "anisoscope"
 version = "0.1.0"
-description = "AnisoScope: GUI and numerical toolkit for crystal elastic anisotropy analysis from Cij."
+description = "AnisoScope | The Crystal Elasticity Atlas: explore directional elastic properties from stiffness tensors."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
@@ -44,10 +44,10 @@ dependencies = [
 test = ["pytest>=7.4", "ruff>=0.8"]
 
 [project.urls]
-Homepage = "https://github.com/D-sudoasd/anisoscope"
-Repository = "https://github.com/D-sudoasd/anisoscope"
-Issues = "https://github.com/D-sudoasd/anisoscope/issues"
-Documentation = "https://github.com/D-sudoasd/anisoscope#readme"
+Homepage = "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas"
+Repository = "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas"
+Issues = "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas/issues"
+Documentation = "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas#readme"
 
 [project.scripts]
 anisoscope = "crystal_elastic_workbench.gui:main"

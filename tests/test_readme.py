@@ -16,7 +16,7 @@ def test_readme_documents_merge_gate_relevant_workflows():
     ]
     for section in required_sections:
         assert section in text
-    assert text.startswith("# AnisoScope")
+    assert text.startswith("# AnisoScope | The Crystal Elasticity Atlas")
     assert "python -m anisoscope" in text
     assert ".\\start_anisoscope.bat" in text
     assert "python -m pytest -q" in text
