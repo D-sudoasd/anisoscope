@@ -44,10 +44,10 @@ dependencies = [
 test = ["pytest>=7.4", "ruff>=0.8"]
 
 [project.urls]
-Homepage = "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas"
-Repository = "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas"
-Issues = "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas/issues"
-Documentation = "https://github.com/D-sudoasd/anisoscope-crystal-elasticity-atlas#readme"
+Homepage = "https://github.com/D-sudoasd/anisoscope"
+Repository = "https://github.com/D-sudoasd/anisoscope"
+Issues = "https://github.com/D-sudoasd/anisoscope/issues"
+Documentation = "https://github.com/D-sudoasd/anisoscope#readme"
 
 [project.scripts]
 anisoscope = "crystal_elastic_workbench.gui:main"
