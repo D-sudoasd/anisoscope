@@ -1,0 +1,12 @@
+{
+  "name": "AnisoScope",
+  "subtitle": "Crystal elastic anisotropy",
+  "palette": "Off-white, deep plum, violet and teal",
+  "motif": "One elegant smooth directional elastic-property surface with modest cubic symmetry lobes, thin coordinate axes and a nearby beautifully typeset symbolic 6-by-6 stiffness matrix represented with sparse Cij symbols. Conceptual visualization only, not real results. Make the surface sophisticated, clean and mathematically plausible.",
+  "tool": "image_gen built-in; model identifier not exposed",
+  "revision": "Removed duplicate x-axis arrowhead; all other content preserved",
+  "prompt": "Create one exceptionally polished scientific software README cover banner, wide landscape approximately 2.4:1 aspect ratio, premium editorial art direction, high resolution. Project: AnisoScope. Palette: Off-white, deep plum, violet and teal. Concept: One elegant smooth directional elastic-property surface with modest cubic symmetry lobes, thin coordinate axes and a nearby beautifully typeset symbolic 6-by-6 stiffness matrix represented with sparse Cij symbols. Conceptual visualization only, not real results. Make the surface sophisticated, clean and mathematically plausible. Compose generous negative space and sharply legible refined sans-serif typography integrated with the scientific motif. Exact text, no other copy: \"AnisoScope\" large, \"Crystal elastic anisotropy\" smaller, and a discreet \"Conceptual illustration\". Make name/subtitle read immediately at GitHub width. Restrained three-dimensional material, carefully controlled highlights, precise linework, sophisticated hierarchy and balanced composition. No generic AI neon clouds, no random particles, no badges, no claims, no photoreal experimental data, no fake application screenshot, no watermarks or publisher branding. This is an editorial cover, not a quantitative paper figure.",
+  "created_on": "2026-09-27",
+  "purpose": "README conceptual cover only, not experimental data or software output",
+  "sha256": "b7db6936de205f8fd5d06ca3dd24864fd37a0bd171e56b263dc55e4a3c58e20d"
+}

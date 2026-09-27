@@ -8,7 +8,7 @@
 [![Citation metadata](https://img.shields.io/badge/citation-CITATION.cff-68777D)](CITATION.cff)
 
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="AnisoScope, The Crystal Elasticity Atlas: explore directional elastic properties from stiffness tensors.">
+  <img src="assets/readme/hero.png" width="100%" alt="AnisoScope: Crystal elastic anisotropy. AI-generated conceptual illustration.">
 </p>
 
 AnisoScope is a Python desktop application and numerical toolkit for inspecting
