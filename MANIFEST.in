@@ -9,3 +9,6 @@ include requirements.txt
 recursive-include assets/readme *.svg
 recursive-include docs *.md
 recursive-include examples *.json *.py
+
+recursive-include docs/joss *.md *.json
+include scripts/check_joss_artifacts.py

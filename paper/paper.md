@@ -9,13 +9,14 @@ tags:
 authors:
   - name: Delun Gong
     orcid: 0000-0001-7877-7707
+    email: dlgong17s@imr.ac.cn
     affiliation: 1
     corresponding: true
 affiliations:
-  - name: Institute of Metal Research, Chinese Academy of Sciences, Shenyang, China
+  - name: Institute of Metal Research, Chinese Academy of Sciences, Shenyang 110016, China
     index: 1
     ror: 03pa1rf77
-date: 12 August 2026
+date: 27 September 2026
 bibliography: paper.bib
 ---
 
@@ -132,31 +133,18 @@ and summary results
 
 # Research impact statement
 
-This version provides verification evidence rather than evidence of research
-use. Automated tests cover analytic isotropic limits, the
-engineering shear convention, stability checks, crystal
-templates, directional sampling, exports, rendering metadata, and GUI smoke
-behaviour. A runnable synthetic example verifies a prescribed isotropic response
-and writes a complete analysis package; the distribution is also installable
-and buildable in a clean Python environment.
+The author reports using AnisoScope in the research underlying the Ti-24Nb-4Zr-8Sn study by Gong et al. [@gong2026acta], as confirmed on 27 September 2026. This is an author-confirmed application, not a claim that the article cites the software or that all features in the current candidate were used. The historical revision and operation-to-output mapping remain to be checked against the author's processing records before submission. The repository records this distinction alongside reproducible software-verification examples. Those examples establish specified numerical and software behavior rather than experimental accuracy or independent adoption.
 
-As of 12 August 2026, we have not identified a peer-reviewed publication,
-preprint, independent research group, or established research pipeline using
-AnisoScope. The paper therefore makes no claims about user numbers, performance
-superiority, or scientific results enabled by the software. The project does not
-yet satisfy JOSS's research-use screening criterion.
 
 # AI usage disclosure
 
 OpenAI Codex (GPT-5 and GPT-5.6 Terra; service build identifiers were not
 exposed) assisted with repository auditing, documentation and test development,
 manuscript editing, and preparation of JOSS submission materials.
-The author reviewed, edited, and validated all AI-assisted outputs and made the
-core design decisions.
+That earlier declaration does not cover subsequent revisions. In September 2026, OpenAI Codex (GPT-6) assisted metadata alignment, research-use documentation, manuscript revision and automated verification. Human review of this preparation revision remains pending.
 
 # Acknowledgements
 
-This work received no specific funding. The author declares no competing
-interests, and there are no additional contributors to acknowledge.
+No external funding was received for this software. There was no sponsor involvement. The author declares no competing interests.
 
 # References
