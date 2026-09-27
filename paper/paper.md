@@ -143,6 +143,8 @@ exposed) assisted with repository auditing, documentation and test development,
 manuscript editing, and preparation of JOSS submission materials.
 That earlier declaration does not cover subsequent revisions. In September 2026, OpenAI Codex (GPT-6) assisted metadata alignment, research-use documentation, manuscript revision and automated verification. Human review of this preparation revision remains pending.
 
+The README cover is AI-generated conceptual artwork. Manuscript diagrams and numerical plots are produced by repository scripts; scientific data are not retouched by an image-generation model.
+
 # Acknowledgements
 
 No external funding was received for this software. There was no sponsor involvement. The author declares no competing interests.

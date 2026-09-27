@@ -1,9 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="140" viewBox="0 0 1200 140" role="img" aria-labelledby="title desc">
-  <title id="title">Packages with sidecar manifests</title>
-  <desc id="desc">Section 02: EXPORT</desc>
-  <rect width="1200" height="140" rx="22" fill="#ECE8E0"/>
-  <text x="54" y="36" fill="#6A655C" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" font-weight="700" letter-spacing="2.4">02 · EXPORT</text>
-  <rect x="54" y="50" width="44" height="4" rx="2" fill="#7C5CC8"/>
-  <text x="54" y="104" fill="#14120F" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="34" font-weight="740">Packages with sidecar manifests</text>
-  <text x="1120" y="108" text-anchor="end" fill="#14120F" fill-opacity="0.06" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="72" font-weight="800">02</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="148" viewBox="0 0 1200 148" role="img" aria-labelledby="title desc">
+<title id="title">02 · EXPORT</title><desc id="desc">Packages with sidecar manifests</desc>
+<rect width="1200" height="148" rx="12" fill="#F7F9FA"/>
+<path d="M40 30V118" stroke="#655083" stroke-width="5"/>
+<g font-family="Segoe UI,Arial,sans-serif"><text x="68" y="52" fill="#655083" font-size="20" font-weight="600" letter-spacing="2">02 · EXPORT</text>
+<text x="68" y="103" fill="#32233F" font-size="34" font-weight="600">Packages with sidecar manifests</text>
+<text x="1140" y="99" text-anchor="end" fill="#655083" font-size="62" font-weight="300" opacity="0.20">02</text></g></svg>

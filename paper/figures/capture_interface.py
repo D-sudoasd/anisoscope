@@ -17,10 +17,10 @@ FINAL_WIDTH_PX = 2400
 DPI = round(FINAL_WIDTH_PX / (FINAL_WIDTH_MM / 25.4))
 HIGH_DPI_SCALE = 3
 LOGICAL_FONT_PX_ESTIMATE = 12
-PANEL_A_WIDTH_PX = 800
+PANEL_A_WIDTH_PX = 1080
 PANEL_GAP_PX = 54
 PANEL_PADDING_PX = 54
-PANEL_LABEL_HEIGHT_PX = 64
+PANEL_LABEL_HEIGHT_PX = 92
 
 
 def main() -> None:
@@ -29,7 +29,7 @@ def main() -> None:
     root = HERE.parent.parent
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    from PySide6.QtCore import QCoreApplication, QRectF, Qt
+    from PySide6.QtCore import QCoreApplication, Qt
     from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
     from PySide6.QtWidgets import QApplication, QGroupBox, QSplitter, QWidget
     from crystal_elastic_workbench.gui import MainWindow
@@ -48,7 +48,7 @@ def main() -> None:
     splitter = window.findChild(QSplitter)
     if splitter is None:
         raise RuntimeError("Could not locate the main input/results splitter")
-    splitter.setSizes([500, 700])
+    splitter.setSizes([360, 840])
     app.processEvents()
     window.load_example_by_name("Si cubic")
     window.analyze_current_matrix()
@@ -68,10 +68,17 @@ def main() -> None:
     matrix_group = next(group for group in groups if group.title() == "Cij Matrix")
     input_group_image = grab_physical(input_group)
     matrix_group_image = grab_physical(matrix_group)
+    # Reflow the real status widget to the publication panel width; retain all text.
+    window.dashboard_stability_banner.setWordWrap(True)
+    window.dashboard_stability_banner.setFixedWidth((FINAL_WIDTH_PX - PANEL_A_WIDTH_PX - PANEL_GAP_PX) // HIGH_DPI_SCALE)
+    window.dashboard_stability_banner.adjustSize()
+    app.processEvents()
     status_image = grab_physical(window.dashboard_stability_banner)
-    metric_card_images = [
-        grab_physical(card) for card in window.findChildren(QWidget, "metricCard")
-    ]
+    metric_cards = window.findChildren(QWidget, "metricCard")
+    for card in metric_cards:
+        card.setFixedSize((FINAL_WIDTH_PX - PANEL_A_WIDTH_PX - PANEL_GAP_PX) // HIGH_DPI_SCALE, 100)
+    app.processEvents()
+    metric_card_images = [grab_physical(card) for card in metric_cards]
     if len(metric_card_images) != 4:
         raise RuntimeError(f"Expected four dashboard metric cards; found {len(metric_card_images)}")
 
@@ -91,42 +98,30 @@ def main() -> None:
     image.fill("white")
     painter = QPainter(image)
     painter.setRenderHint(QPainter.Antialiasing)
-    panel_font = QFont("Arial", 28, QFont.Bold)
+    panel_font = QFont("Arial", 34, QFont.Bold)
     painter.setFont(panel_font)
-    painter.setPen(QColor("#183B56"))
-    painter.drawText(8, 42, "a")
-    painter.drawText(dashboard_x + 8, 42, "b")
+    painter.setPen(QColor("#49375F"))
+    painter.drawText(8, 54, "a   Input tensor")
+    painter.drawText(dashboard_x + 8, 54, "b   Analysis summary")
 
     top = PANEL_LABEL_HEIGHT_PX
     painter.drawImage(0, top, input_scaled)
     painter.drawImage(0, top + input_scaled.height() + PANEL_PADDING_PX, matrix_scaled)
-    status_crop = status_image.copy(
-        0,
-        0,
-        min(dashboard_width, status_image.width()),
-        status_image.height(),
-    )
+    status_crop = status_image.scaledToWidth(dashboard_width, Qt.SmoothTransformation)
     painter.drawImage(dashboard_x, top, status_crop)
 
     card_gap = PANEL_PADDING_PX
-    card_width = (dashboard_width - card_gap) // 2
+    card_width = dashboard_width
     card_height = 300
     card_top = top + status_crop.height() + PANEL_PADDING_PX
     painter.setPen(QPen(QColor("#AFC3CD"), 2))
     for index, card_image in enumerate(metric_card_images):
-        row, column = divmod(index, 2)
+        row, column = index, 0
         x = dashboard_x + column * (card_width + card_gap)
         y = card_top + row * (card_height + card_gap)
-        rect = QRectF(x, y, card_width, card_height)
-        painter.setBrush(QColor("#F7FAFC"))
-        painter.drawRoundedRect(rect, 12, 12)
-        source = card_image.copy(
-            0,
-            0,
-            min(card_image.width(), card_width - 40),
-            min(card_image.height(), card_height - 40),
-        )
-        painter.drawImage(x + 20, y + 20, source)
+        # Preserve each complete captured widget, including its native boundary.
+        source = card_image.scaledToWidth(card_width, Qt.SmoothTransformation)
+        painter.drawImage(x, y, source)
     painter.end()
     image.setDotsPerMeterX(round(DPI / 0.0254))
     image.setDotsPerMeterY(round(DPI / 0.0254))
@@ -154,9 +149,9 @@ def main() -> None:
             "panel_b": "real dashboard status and four metric-card widget captures arranged in a 2x2 grid",
             "panel_gap_px": PANEL_GAP_PX,
             "dashboard_padding_px": PANEL_PADDING_PX,
-            "panel_letters": "layout annotations drawn by QPainter; all scientific labels and values come from Qt widgets",
-            "metric_layout": "2x2 with neutral card backgrounds",
-            "metric_cell_processing": "top-left content crop from each complete real widget; no values or labels redrawn",
+            "panel_letters": "Panel letters and headings are layout annotations drawn by QPainter; all scientific labels and values come from Qt widgets",
+            "metric_layout": "Four complete widgets reflowed to one publication column",
+            "metric_cell_processing": "Complete real widgets uniformly scaled to panel width; no values or labels redrawn",
             "panel_a_scale": PANEL_A_WIDTH_PX / input_group_image.width(),
         },
         "final_width_mm": FINAL_WIDTH_MM,
