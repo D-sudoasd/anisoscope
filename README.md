@@ -297,3 +297,7 @@ and include the repository URL. Do not substitute a future or placeholder DOI.
 
 AnisoScope is distributed under the [MIT License](LICENSE). Copyright 2026
 Delun Gong.
+
+## JOSS preparation
+
+See the [submission guide](docs/joss/README.md) for the manuscript, verified author metadata, research-use evidence and final checks. This repository is being prepared for submission; no JOSS acceptance is claimed.

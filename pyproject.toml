@@ -11,7 +11,7 @@ requires-python = ">=3.11,<3.14"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
-    { name = "Delun Gong" },
+    { name = "Delun Gong", email = "dlgong17s@imr.ac.cn" },
 ]
 keywords = [
     "elastic tensor",
@@ -41,7 +41,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7.4", "ruff>=0.8"]
+test = ["pytest>=7.4", "ruff>=0.8", "PyYAML>=6"]
 
 [project.urls]
 Homepage = "https://github.com/D-sudoasd/anisoscope"
