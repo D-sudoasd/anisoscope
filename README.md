@@ -1,34 +1,24 @@
 # AnisoScope | The Crystal Elasticity Atlas
 
-**Explore directional elastic properties from stiffness tensors.**
+**从刚度矩阵出发，检查稳定性、比较弹性平均值并绘制方向性弹性。**
 
-[![Tests](https://github.com/D-sudoasd/anisoscope/actions/workflows/tests.yml/badge.svg)](https://github.com/D-sudoasd/anisoscope/actions/workflows/tests.yml)
-[![Python 3.11–3.13](https://img.shields.io/badge/Python-3.11--3.13-2F6678)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-B47B3C.svg)](LICENSE)
-[![Citation metadata](https://img.shields.io/badge/citation-CITATION.cff-68777D)](CITATION.cff)
+A Python desktop application and numerical toolkit for researchers working with crystal elastic anisotropy. Start with an explicit `6 × 6` Voigt stiffness tensor in GPa and retain the matrix, crystal system, conventions, and sampling settings with exported results.
 
-<p align="center">
-  <img src="assets/readme/hero.png" width="100%" alt="AnisoScope: Crystal elastic anisotropy. AI-generated conceptual illustration.">
-</p>
+[Install and run](#install-and-run) · [Capabilities](#main-capabilities) · [User guide](docs/USER_GUIDE.md) · [Citation metadata](CITATION.cff)
 
-AnisoScope is a Python desktop application and numerical toolkit for inspecting
-crystal elastic anisotropy from a stiffness matrix, $C_{ij}$. It is intended for
-materials researchers who need to move from a reported or calculated elastic
-tensor to stability checks, scalar averages, directional properties, figures,
-and reusable tabular data without losing the input convention and sampling
-settings that produced each result.
+[![Tests](https://github.com/D-sudoasd/anisoscope/actions/workflows/tests.yml/badge.svg)](https://github.com/D-sudoasd/anisoscope/actions/workflows/tests.yml) [![Python 3.11–3.13](https://img.shields.io/badge/Python-3.11--3.13-2F6678)](pyproject.toml) [![MIT](https://img.shields.io/badge/License-MIT-B47B3C)](LICENSE)
 
-The software does not determine whether a tensor is physically appropriate for
-a specimen or calculation. Instead, it makes the numerical workflow inspectable:
-the matrix, unit, crystal system, Voigt convention, and sampling grid are
-written alongside generated results; visual settings are added where applicable
-to figure and animation sidecars.
+![真实应用界面：输入刚度矩阵与约定，查看诊断和Hill平均值；使用内置Si演示矩阵](paper/figures/anisoscope_interface.png)
 
-<p align="center">
-  <img src="paper/figures/anisoscope_interface.png" width="100%" alt="AnisoScope interface showing Cij input and dashboard diagnostics for the bundled Si demonstration matrix.">
-</p>
+```mermaid
+flowchart TD
+  A[Stiffness tensor and convention] --> B[Matrix and stability checks]
+  B --> C[Compliance and scalar averages]
+  C --> D[Directional sampling and plots]
+  D --> E[Figures and CSV / XLSX / JSON]
+```
 
-<p align="center"><em>Real application state: explicit Cij input and convention on the left; implemented diagnostics and Hill averages on the right. The bundled Si values are demonstration data, not reference constants.</em></p>
+The Si matrix above is demonstration data. The software checks the supplied tensor numerically; its physical suitability for a specimen or calculation remains a research judgment.
 
 ## Install and run
 
