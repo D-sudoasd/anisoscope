@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/readme/hero.png" width="100%" alt="AnisoScope: Crystal elastic anisotropy. AI-generated conceptual illustration.">
+</p>
+
 # AnisoScope | The Crystal Elasticity Atlas
 
 **从刚度矩阵出发，检查稳定性、比较弹性平均值并绘制方向性弹性。**
@@ -10,13 +14,12 @@ A Python desktop application and numerical toolkit for researchers working with 
 
 ![真实应用界面：输入刚度矩阵与约定，查看诊断和Hill平均值；使用内置Si演示矩阵](paper/figures/anisoscope_interface.png)
 
-```mermaid
-flowchart TD
-  A[Stiffness tensor and convention] --> B[Matrix and stability checks]
-  B --> C[Compliance and scalar averages]
-  C --> D[Directional sampling and plots]
-  D --> E[Figures and CSV / XLSX / JSON]
-```
+<picture>
+  <source media="(max-width: 600px)" srcset="assets/readme/diagrams/workflow-readme-md-1-mobile.svg">
+  <img src="assets/readme/diagrams/workflow-readme-md-1.svg" width="100%" alt="anisoscope — workflow schematic / 流程示意图">
+</picture>
+
+<sub>[Editable diagram source / 可编辑图源](assets/readme/diagrams/workflow-readme-md-1.mmd)</sub>
 
 The Si matrix above is demonstration data. The software checks the supplied tensor numerically; its physical suitability for a specimen or calculation remains a research judgment.
 
