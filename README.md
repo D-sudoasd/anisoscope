@@ -23,6 +23,18 @@ A Python desktop application and numerical toolkit for researchers working with 
 
 The Si matrix above is demonstration data. The software checks the supplied tensor numerically; its physical suitability for a specimen or calculation remains a research judgment.
 
+## 原理示意 / Principle schematic
+
+<p align="center">
+  <img src="assets/readme/principle.png" width="100%" alt="Directional elastic response from stiffness tensor — conceptual schematic / 概念示意图">
+</p>
+
+*刚度张量求逆得到柔度张量，方向采样形成杨氏模量曲面；曲面半径与方向弹性响应关联。所示形状为概念示意，不代表特定晶体的计算结果。*
+
+*The stiffness tensor yields compliance, and directional sampling produces a Young's-modulus surface. Radial distance represents directional response; this surface is conceptual, not a computed material result.*
+
+[查看完整示意图 / View full-size schematic](assets/readme/principle.png)
+
 ## Install and run
 
 AnisoScope supports Python 3.11, 3.12, and 3.13. From a clone:
